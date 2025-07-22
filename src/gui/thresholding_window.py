@@ -5,6 +5,7 @@ import numpy as np
 import json
 from ..analysis.threshold.image_processor import ThresholdProcessor
 from ..controls.trackbar_manager import TrackbarManager, make_trackbar
+from ..config.viewer_config import ViewerConfig
 
 class ThresholdingWindow:
     def __init__(self, viewer, color_space):
@@ -12,7 +13,6 @@ class ThresholdingWindow:
         self.color_space = color_space
         self.root = None
         self.window_created = False
-        self.trackbar_manager = None
         
         # Initialize UI variables to prevent AttributeError
         self.threshold_method_var = None
@@ -31,6 +31,10 @@ class ThresholdingWindow:
         self.current_method = None
         self.current_trackbars = []  # Keep track of currently displayed trackbars
         self.close_callback = None  # Callback to call when window is closed
+        
+        # Create dedicated ImageViewer for thresholding with full functionality
+        self.threshold_viewer = None
+        self.is_processing = False  # Prevent recursive updates
 
         self.ranges = {
             "BGR": {"B": (0, 255), "G": (0, 255), "R": (0, 255)},
@@ -47,10 +51,10 @@ class ThresholdingWindow:
         if self.window_created:
             return
 
-        self.image_window_name = f"Thresholded - {self.color_space}"
-        cv2.namedWindow(self.image_window_name, cv2.WINDOW_NORMAL)
+        # Create a dedicated ImageViewer for thresholding
+        self._create_threshold_viewer()
 
-        self.trackbar_manager = TrackbarManager(self.image_window_name)
+        self.trackbar_manager = self.threshold_viewer.trackbar
         
         self.root = tk.Toplevel()
         self.root.title(f"Thresholding Controls - {self.color_space}")
@@ -141,6 +145,875 @@ class ThresholdingWindow:
         
         # Create trackbars after UI is set up
         self.create_trackbars()
+        
+    def _create_threshold_viewer(self):
+        """Create a dedicated ImageViewer for thresholding with full zoom/pan functionality."""
+        # Import ImageViewer dynamically to avoid circular imports
+        from ..core.image_viewer import ImageViewer
+        
+        # Create configuration for the threshold viewer
+        threshold_config = ViewerConfig()
+        threshold_config.process_window_name = f"Thresholded Process - {self.color_space}"
+        threshold_config.trackbar_window_name = f"Thresholding Trackbars - {self.color_space}" 
+        threshold_config.text_window_name = f"Thresholding Text - {self.color_space}"  # Won't be created
+        threshold_config.screen_width = 800
+        threshold_config.screen_height = 600
+        threshold_config.enable_debug = True
+        
+        # Get initial trackbar definitions using the same method as switching
+        initial_method = "Simple" if self.color_space == "Grayscale" else "Range"
+        initial_trackbars = self._get_trackbar_configs_for_method(initial_method)
+            
+        # Create a completely custom ImageViewer that doesn't create unwanted windows
+        self.threshold_viewer = self._create_minimal_image_viewer(threshold_config, initial_trackbars)
+        
+        # Set up the viewer with the threshold processor function
+        self.threshold_viewer.setup_viewer(image_processor_func=self._threshold_processor)
+        
+    def _create_minimal_image_viewer(self, config, trackbar_definitions):
+        """Create a minimal ImageViewer that only creates the windows we want."""
+        # Import ImageViewer dynamically
+        from ..core.image_viewer import ImageViewer
+        from ..events.mouse_handler import MouseHandler
+        from ..controls.trackbar_manager import TrackbarManager
+        from ..analysis import ImageAnalyzer
+        from types import SimpleNamespace
+        import numpy as np
+        
+        # Create the ImageViewer but bypass its normal initialization
+        viewer = object.__new__(ImageViewer)  # Create without calling __init__
+        
+        # Set configuration
+        viewer.config = config
+        viewer.config.trackbar = trackbar_definitions
+        viewer.config.enable_debug = True
+        
+        # Prevent any analysis window creation by setting a flag
+        viewer.config.create_analysis_window = False
+        viewer.config.create_text_window = False
+        
+        # Basic initialization
+        viewer.max_headless_iterations = 1
+        viewer._headless_iteration_count = 0
+        viewer._app_debug_mode = True
+        viewer._should_continue_loop = True
+        viewer._auto_initialized = False
+        viewer._params_changed = False
+        viewer._event_handlers = {}
+        
+        # Initialize essential attributes to prevent AttributeError
+        viewer._internal_images = []
+        viewer.current_image_dims = None
+        viewer.size_ratio = 1.0
+        viewer.show_area = [0, 0, config.screen_width, config.screen_height]
+        viewer.address = "(0,0)"
+        viewer.initial_window_size = (config.screen_width, config.screen_height)
+        viewer.user_image_processor = None
+        viewer.image_processing_func_internal = None
+        viewer._cached_scaled_image = None
+        viewer._cached_size_ratio = None
+        viewer._cached_show_area = None
+        
+        # Add zoom/pan limits similar to main window
+        viewer.config.min_size_ratio = 0.1
+        viewer.config.max_size_ratio = 20.0
+        
+        # Mock text window attributes without creating actual window
+        viewer.text_image = np.full((getattr(config, 'text_window_height', 200), getattr(config, 'text_window_width', 400), 3), 255, dtype=np.uint8)
+        viewer.log_texts = []
+        
+        # Initialize components 
+        viewer.mouse = MouseHandler()
+        viewer.mouse.mouse_point = [0, 0]  # Initialize mouse position
+        viewer.trackbar = TrackbarManager(config.trackbar_window_name)
+        viewer.windows = self._create_custom_window_manager(config)
+        viewer.analyzer = ImageAnalyzer()
+        
+        # Create completely inert analysis window mock
+        viewer.analysis_window = SimpleNamespace()
+        viewer.analysis_window.create_window = lambda: None
+        viewer.analysis_window.cleanup_windows = lambda: None 
+        viewer.analysis_window.update_selections = lambda: None
+        viewer.analysis_window._process_tk_events = lambda: None
+        viewer.analysis_window.window_created = False
+        
+        # Override ALL methods that could create unwanted windows
+        viewer._show_text_window = lambda: None
+        viewer._text_mouse_callback = lambda event, x, y, flags, param: None
+        viewer._process_tk_events = lambda: None
+        viewer._create_text_window = lambda: None
+        viewer._create_analysis_control_window = lambda: None
+        
+        # Add essential methods from ImageViewer
+        viewer.log = self._create_log_method(viewer)
+        viewer.setup_viewer = self._create_setup_viewer_method(viewer)
+        viewer.cleanup_viewer = self._create_cleanup_viewer_method(viewer)
+        viewer.should_loop_continue = lambda: viewer._should_continue_loop
+        viewer._process_frame_and_check_quit = self._create_process_frame_method(viewer)
+        
+        # Add zoom/pan transformation methods
+        viewer._apply_zoom_pan_transform = self._create_zoom_pan_method(viewer)
+        viewer._draw_rois_on_image = self._create_roi_drawing_method(viewer)
+        viewer._draw_lines_on_image = self._create_line_drawing_method(viewer)
+        
+        # Add display_images property that triggers processing
+        def get_display_images():
+            return viewer._internal_images
+            
+        def set_display_images(image_list):
+            if not isinstance(image_list, list) or not image_list:
+                viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "Empty")]
+                return
+                
+            # Validate images
+            valid_images = []
+            for item in image_list:
+                if isinstance(item, tuple) and len(item) == 2:
+                    img, title = item
+                    if isinstance(img, np.ndarray) and img.size > 0:
+                        valid_images.append((img, title))
+                        
+            if not valid_images:
+                viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "Invalid Images")]
+            else:
+                viewer._internal_images = valid_images
+            
+            # Process the image if viewer is active
+            if viewer.config.enable_debug and viewer._should_continue_loop and hasattr(viewer, 'windows') and viewer.windows.windows_created:
+                try:
+                    viewer._process_frame_and_check_quit()
+                except Exception as e:
+                    viewer.log(f"Error in display update: {e}")
+        
+        # Create display_images as simple methods instead of property
+        def get_display_images():
+            return viewer._internal_images
+            
+        def set_display_images(image_list):
+            if not isinstance(image_list, list) or not image_list:
+                viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "Empty")]
+                return
+                
+            # Validate images
+            valid_images = []
+            for item in image_list:
+                if isinstance(item, tuple) and len(item) == 2:
+                    img, title = item
+                    if isinstance(img, np.ndarray) and img.size > 0:
+                        valid_images.append((img, title))
+                        
+            if not valid_images:
+                viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "Invalid Images")]
+            else:
+                viewer._internal_images = valid_images
+            
+            # Process the image if viewer is active
+            if viewer.config.enable_debug and viewer._should_continue_loop and hasattr(viewer, 'windows') and viewer.windows.windows_created:
+                try:
+                    viewer._process_frame_and_check_quit()
+                except Exception as e:
+                    viewer.log(f"Error in display update: {e}")
+        
+        # Add methods to viewer
+        viewer.get_display_images = get_display_images
+        viewer.set_display_images = set_display_images
+        
+        # Create a simpler property-like interface
+        class DisplayImagesProxy:
+            def __get__(self, obj, objtype):
+                return get_display_images()
+            def __set__(self, obj, value):
+                set_display_images(value)
+        
+        viewer.display_images = DisplayImagesProxy()
+        
+        # Initialize with empty images
+        viewer._internal_images = []
+        
+        return viewer
+        
+    def _create_log_method(self, viewer):
+        """Create a log method for the minimal viewer."""
+        def log_method(message):
+            viewer.log_texts.append(message)
+            if len(viewer.log_texts) > 100:  # Keep only last 100 messages
+                viewer.log_texts = viewer.log_texts[-100:]
+            print(f"[Threshold Viewer] {message}")  # Also print to console
+        return log_method
+        
+    def _create_setup_viewer_method(self, viewer):
+        """Create a setup_viewer method for the minimal viewer."""
+        def setup_viewer_method(initial_images_for_first_frame=None, image_processor_func=None):
+            viewer.log("Setting up minimal threshold viewer...")
+            viewer._should_continue_loop = True
+            viewer.user_image_processor = image_processor_func
+            
+            # Initialize parameters from trackbar definitions
+            viewer.trackbar.parameters = {}
+            for trackbar_config in viewer.config.trackbar:
+                param_name = trackbar_config.get('param_name')
+                initial_value = trackbar_config.get('initial_value', 0)
+                if param_name:
+                    viewer.trackbar.parameters[param_name] = initial_value
+            
+            # Only create windows if debug is enabled
+            if viewer.config.enable_debug:
+                # Create mouse callback for zoom/pan/drawing functionality similar to main window
+                def mouse_callback(event, x, y, flags, param):
+                    import cv2  # Import cv2 for event constants
+                    try:
+                        # Get image dimensions for coordinate transformations
+                        if not viewer._internal_images or not viewer.current_image_dims:
+                            return
+                            
+                        orig_img_h, orig_img_w = viewer.current_image_dims[:2]
+                        view_w, view_h = viewer.config.screen_width, viewer.config.screen_height
+                        
+                        # Convert mouse coordinates to view coordinates (with bounds checking)
+                        x_view = max(0, min(x, view_w - 1))
+                        y_view = max(0, min(y, view_h - 1))
+                        
+                        # Convert view coordinates to scaled image coordinates
+                        x_on_scaled_img = viewer.show_area[0] + x_view
+                        y_on_scaled_img = viewer.show_area[1] + y_view
+                        
+                        # Convert scaled image coordinates to original image coordinates
+                        current_size_ratio = viewer.size_ratio if abs(viewer.size_ratio) > 1e-6 else 1e-6
+                        ptr_x_orig = int(x_on_scaled_img / current_size_ratio)
+                        ptr_y_orig = int(y_on_scaled_img / current_size_ratio)
+                        
+                        # Clamp to original image bounds
+                        ptr_x_orig = max(0, min(ptr_x_orig, orig_img_w - 1))
+                        ptr_y_orig = max(0, min(ptr_y_orig, orig_img_h - 1))
+                        
+                        # Update mouse position
+                        viewer.mouse.mouse_point = [x_view, y_view]
+                        viewer.mouse.scale_ptr = [ptr_x_orig, ptr_y_orig]
+                        viewer.address = f"({ptr_x_orig},{ptr_y_orig})"
+                        
+                        # Handle zoom functionality (mouse wheel)
+                        if event == cv2.EVENT_MOUSEWHEEL:
+                            delta = flags
+                            ctrl_key = (flags & cv2.EVENT_FLAG_CTRLKEY) != 0
+                            zoom_factor = 1.15 if not ctrl_key else 1.40
+                            
+                            if delta > 0:
+                                viewer.size_ratio *= zoom_factor
+                            else:
+                                viewer.size_ratio /= zoom_factor
+                                
+                            # Apply zoom limits
+                            viewer.size_ratio = max(viewer.config.min_size_ratio, 
+                                                  min(viewer.size_ratio, viewer.config.max_size_ratio))
+                            
+                            # Adjust show_area to zoom at mouse cursor
+                            viewer.show_area[0] = int(ptr_x_orig * viewer.size_ratio - x_view)
+                            viewer.show_area[1] = int(ptr_y_orig * viewer.size_ratio - y_view)
+                            
+                            viewer.log(f"Zoom: {viewer.size_ratio:.2f}x at ({ptr_x_orig},{ptr_y_orig})")
+                            
+                            # Force display refresh after zoom
+                            if hasattr(viewer, '_process_frame_and_check_quit'):
+                                viewer._process_frame_and_check_quit()
+                        
+                        # Handle pan functionality (middle button drag)
+                        elif event == cv2.EVENT_MBUTTONDOWN:
+                            viewer.mouse.is_middle_button_down = True
+                            viewer.mouse.middle_button_start = (x_view, y_view)
+                            viewer.mouse.middle_button_area_start = (viewer.show_area[0], viewer.show_area[1])
+                            
+                        elif event == cv2.EVENT_MBUTTONUP:
+                            viewer.mouse.is_middle_button_down = False
+                            
+                        elif (event == cv2.EVENT_MOUSEMOVE and 
+                              hasattr(viewer.mouse, 'is_middle_button_down') and viewer.mouse.is_middle_button_down and
+                              hasattr(viewer.mouse, 'middle_button_start') and hasattr(viewer.mouse, 'middle_button_area_start')):
+                            # Calculate pan delta
+                            dx = x_view - viewer.mouse.middle_button_start[0]
+                            dy = y_view - viewer.mouse.middle_button_start[1]
+                            
+                            # Apply pan to show_area
+                            viewer.show_area[0] = viewer.mouse.middle_button_area_start[0] - dx
+                            viewer.show_area[1] = viewer.mouse.middle_button_area_start[1] - dy
+                            
+                            # Force display refresh during pan
+                            if hasattr(viewer, '_process_frame_and_check_quit'):
+                                viewer._process_frame_and_check_quit()
+                        
+                        # Handle ROI drawing (left button drag) - using original image coordinates
+                        elif event == cv2.EVENT_LBUTTONDOWN:
+                            if not hasattr(viewer.mouse, 'drawn_rois'):
+                                viewer.mouse.drawn_rois = []
+                            viewer.mouse.is_left_button_down = True
+                            viewer.mouse.left_button_start = (ptr_x_orig, ptr_y_orig)
+                            
+                        elif (event == cv2.EVENT_MOUSEMOVE and 
+                              hasattr(viewer.mouse, 'is_left_button_down') and viewer.mouse.is_left_button_down and
+                              hasattr(viewer.mouse, 'left_button_start')):
+                            # Show live preview during ROI drawing in original image coordinates
+                            x1_orig, y1_orig = viewer.mouse.left_button_start
+                            w_orig = abs(x1_orig - ptr_x_orig)
+                            h_orig = abs(y1_orig - ptr_y_orig)
+                            
+                            if w_orig > 2 and h_orig > 2:  # Show preview for reasonable sizes
+                                rect_x_orig = min(x1_orig, ptr_x_orig)
+                                rect_y_orig = min(y1_orig, ptr_y_orig)
+                                viewer.mouse.roi_preview = (rect_x_orig, rect_y_orig, w_orig, h_orig)
+                                
+                                # Force display refresh to show preview
+                                if hasattr(viewer, '_process_frame_and_check_quit'):
+                                    viewer._process_frame_and_check_quit()
+                        
+                        elif event == cv2.EVENT_LBUTTONUP:
+                            if (hasattr(viewer.mouse, 'is_left_button_down') and viewer.mouse.is_left_button_down and
+                                hasattr(viewer.mouse, 'left_button_start')):
+                                
+                                # Calculate ROI in original image coordinates
+                                x1_orig, y1_orig = viewer.mouse.left_button_start
+                                rect_x_orig = min(x1_orig, ptr_x_orig)
+                                rect_y_orig = min(y1_orig, ptr_y_orig)
+                                rect_w_orig = abs(x1_orig - ptr_x_orig)
+                                rect_h_orig = abs(y1_orig - ptr_y_orig)
+                                
+                                # Only add ROI if it's large enough
+                                if rect_w_orig > 5 and rect_h_orig > 5:
+                                    roi = (rect_x_orig, rect_y_orig, rect_w_orig, rect_h_orig)
+                                    viewer.mouse.drawn_rois.append(roi)
+                                    viewer.log(f"ROI added: {roi}")
+                                    
+                                    # Force display refresh to show new ROI
+                                    if hasattr(viewer, '_process_frame_and_check_quit'):
+                                        viewer._process_frame_and_check_quit()
+                                        
+                            # Clear preview and drawing state
+                            if hasattr(viewer.mouse, 'roi_preview'):
+                                delattr(viewer.mouse, 'roi_preview')
+                            viewer.mouse.is_left_button_down = False
+                        
+                        # Handle right click to clear elements
+                        elif event == cv2.EVENT_RBUTTONDOWN:
+                            removed = False
+                            if hasattr(viewer.mouse, 'drawn_rois') and viewer.mouse.drawn_rois:
+                                removed_roi = viewer.mouse.drawn_rois.pop()
+                                viewer.log(f"Removed ROI: {removed_roi}")
+                                removed = True
+                            elif hasattr(viewer.mouse, 'drawn_lines') and viewer.mouse.drawn_lines:
+                                removed_line = viewer.mouse.drawn_lines.pop()
+                                viewer.log(f"Removed line: {removed_line}")
+                                removed = True
+                            
+                            # Force display refresh after removing element
+                            if removed and hasattr(viewer, '_process_frame_and_check_quit'):
+                                viewer._process_frame_and_check_quit()
+                                
+                    except Exception as e:
+                        viewer.log(f"Mouse callback error: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                # Create only the windows we need (process + trackbar)
+                viewer.windows.create_windows(mouse_callback, None)
+                
+                # Create trackbars only if windows were created successfully
+                if viewer.windows.windows_created:
+                    viewer.log(f"Creating {len(viewer.config.trackbar)} trackbars...")
+                    for trackbar_config in viewer.config.trackbar:
+                        try:
+                            viewer.trackbar.create_trackbar(trackbar_config, viewer)
+                        except Exception as e:
+                            viewer.log(f"Error creating trackbar {trackbar_config.get('name', 'Unknown')}: {e}")
+                else:
+                    viewer.log("Failed to create windows - disabling viewer")
+                    viewer._should_continue_loop = False
+                    return
+            
+            # Set initial images
+            if image_processor_func and viewer._should_continue_loop:
+                try:
+                    temp_images = image_processor_func(dict(viewer.trackbar.parameters), viewer.log)
+                    if temp_images:
+                        viewer._internal_images = temp_images
+                    else:
+                        viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "No Images")]
+                except Exception as e:
+                    viewer.log(f"Error in initial image processing: {e}")
+                    viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "Process Error")]
+            elif initial_images_for_first_frame:
+                viewer._internal_images = initial_images_for_first_frame
+            else:
+                viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "Empty Start")]
+            
+            viewer.log("Minimal threshold viewer setup complete.")
+            
+        return setup_viewer_method
+        
+    def _create_cleanup_viewer_method(self, viewer):
+        """Create a cleanup_viewer method for the minimal viewer."""
+        def cleanup_viewer_method():
+            viewer.log("Cleaning up minimal threshold viewer...")
+            viewer._should_continue_loop = False
+            if hasattr(viewer.windows, 'destroy_all_windows'):
+                viewer.windows.destroy_all_windows()
+        return cleanup_viewer_method
+        
+    def _create_process_frame_method(self, viewer):
+        """Create a process frame method for the minimal viewer."""
+        def process_frame_method():
+            if not viewer.config.enable_debug or not viewer._should_continue_loop:
+                return
+            if not viewer.windows.windows_created:
+                return
+                
+            if not viewer._internal_images:
+                viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "No Images")]
+            
+            try:
+                # Process the current image and display it with proper scaling and mouse interaction
+                if viewer._internal_images:
+                    current_image, title = viewer._internal_images[0]
+                    if current_image is not None and current_image.size > 0:
+                        
+                        # Update image dimensions for mouse calculations
+                        viewer.current_image_dims = current_image.shape
+                        
+                        # Apply zoom and pan transformations similar to main viewer
+                        display_image = viewer._apply_zoom_pan_transform(current_image)
+                        
+                        # Draw ROIs and lines if any exist
+                        if hasattr(viewer.mouse, 'drawn_rois') and viewer.mouse.drawn_rois:
+                            display_image = viewer._draw_rois_on_image(display_image, viewer.mouse.drawn_rois)
+                        
+                        if hasattr(viewer.mouse, 'drawn_lines') and viewer.mouse.drawn_lines:
+                            display_image = viewer._draw_lines_on_image(display_image, viewer.mouse.drawn_lines)
+                        
+                        # Display the processed image
+                        cv2.imshow(viewer.config.process_window_name, display_image)
+                
+                # Handle key events
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or key == 27:
+                    viewer.log("Quit key pressed in threshold viewer")
+                    viewer._should_continue_loop = False
+                elif key == ord('r'):
+                    # Reset zoom and pan
+                    viewer.size_ratio = 1.0
+                    viewer.show_area = [0, 0, viewer.config.screen_width, viewer.config.screen_height]
+                    viewer.log("View reset")
+                elif key == ord('c'):
+                    # Clear drawn elements
+                    if hasattr(viewer.mouse, 'drawn_rois'):
+                        viewer.mouse.drawn_rois.clear()
+                    if hasattr(viewer.mouse, 'drawn_lines'):
+                        viewer.mouse.drawn_lines.clear()
+                    viewer.log("Cleared drawn elements")
+                    
+            except Exception as e:
+                viewer.log(f"Error in process_frame: {e}")
+                import traceback
+                traceback.print_exc()
+                
+        return process_frame_method
+        
+    def _create_zoom_pan_method(self, viewer):
+        """Create zoom and pan transformation method similar to main ImageViewer."""
+        def zoom_pan_transform(image):
+            import cv2
+            import numpy as np
+            
+            if image is None or image.size == 0:
+                return image
+                
+            # Get original image dimensions
+            orig_h, orig_w = image.shape[:2]
+            viewer.current_image_dims = image.shape
+            
+            # Get viewport dimensions
+            view_w, view_h = viewer.config.screen_width, viewer.config.screen_height
+            
+            # Apply zoom scaling
+            scaled_w = int(orig_w * viewer.size_ratio)
+            scaled_h = int(orig_h * viewer.size_ratio)
+            
+            # Scale the image if needed
+            if viewer.size_ratio != 1.0 and scaled_w > 0 and scaled_h > 0:
+                scaled_image = cv2.resize(image, (scaled_w, scaled_h))
+            else:
+                scaled_image = image
+                scaled_w, scaled_h = orig_w, orig_h
+            
+            # Handle viewport clipping - constrain show_area to valid bounds
+            max_show_x = max(0, scaled_w - view_w)
+            max_show_y = max(0, scaled_h - view_h)
+            viewer.show_area[0] = max(0, min(viewer.show_area[0], max_show_x))
+            viewer.show_area[1] = max(0, min(viewer.show_area[1], max_show_y))
+            
+            # Extract the viewable region
+            roi_x_start = viewer.show_area[0]
+            roi_y_start = viewer.show_area[1]
+            roi_w_actual = min(view_w, scaled_w - roi_x_start)
+            roi_h_actual = min(view_h, scaled_h - roi_y_start)
+            
+            # Extract the viewport from scaled image
+            if roi_w_actual > 0 and roi_h_actual > 0:
+                try:
+                    viewport_image = scaled_image[roi_y_start:roi_y_start + roi_h_actual, 
+                                                roi_x_start:roi_x_start + roi_w_actual]
+                except Exception as e:
+                    viewer.log(f"Viewport extraction error: {e}")
+                    return image
+                    
+                # If viewport is smaller than view window, pad it
+                if viewport_image.shape[0] < view_h or viewport_image.shape[1] < view_w:
+                    # Create a black background of view size
+                    if len(image.shape) == 3:
+                        padded_image = np.zeros((view_h, view_w, image.shape[2]), dtype=image.dtype)
+                    else:
+                        padded_image = np.zeros((view_h, view_w), dtype=image.dtype)
+                    
+                    # Place the viewport image in the padded image
+                    padded_image[:viewport_image.shape[0], :viewport_image.shape[1]] = viewport_image
+                    return padded_image
+                else:
+                    return viewport_image
+            else:
+                # Return a black image if no valid viewport
+                if len(image.shape) == 3:
+                    return np.zeros((view_h, view_w, image.shape[2]), dtype=image.dtype)
+                else:
+                    return np.zeros((view_h, view_w), dtype=image.dtype)
+                    
+        return zoom_pan_transform
+        
+    def _create_roi_drawing_method(self, viewer):
+        """Create ROI drawing method with coordinate transformation."""
+        def draw_rois_on_image(image, rois):
+            import cv2
+            if image is None:
+                return image
+                
+            display_image = image.copy()
+            
+            # Helper function to convert original image coordinates to display coordinates
+            def orig_to_display(x_orig, y_orig):
+                # Convert original coordinates to scaled coordinates
+                x_scaled = int(x_orig * viewer.size_ratio)
+                y_scaled = int(y_orig * viewer.size_ratio)
+                
+                # Convert scaled coordinates to display coordinates (subtract show_area offset)
+                x_display = x_scaled - viewer.show_area[0]
+                y_display = y_scaled - viewer.show_area[1]
+                
+                return x_display, y_display
+            
+            # Draw completed ROIs (stored in original image coordinates)
+            if rois:
+                for i, roi in enumerate(rois):
+                    if len(roi) >= 4:
+                        x_orig, y_orig, w_orig, h_orig = roi[:4]
+                        
+                        # Convert to display coordinates
+                        x1_display, y1_display = orig_to_display(x_orig, y_orig)
+                        x2_display, y2_display = orig_to_display(x_orig + w_orig, y_orig + h_orig)
+                        
+                        # Only draw if ROI is visible in current view
+                        if (x2_display >= 0 and y2_display >= 0 and 
+                            x1_display < display_image.shape[1] and y1_display < display_image.shape[0]):
+                            
+                            # Clamp coordinates to display image bounds
+                            x1_display = max(0, min(x1_display, display_image.shape[1]))
+                            y1_display = max(0, min(y1_display, display_image.shape[0]))
+                            x2_display = max(0, min(x2_display, display_image.shape[1]))
+                            y2_display = max(0, min(y2_display, display_image.shape[0]))
+                            
+                            # Draw rectangle in green
+                            cv2.rectangle(display_image, (int(x1_display), int(y1_display)), 
+                                        (int(x2_display), int(y2_display)), (0, 255, 0), 2)
+                            
+                            # Draw ROI label
+                            label_y = max(15, int(y1_display))
+                            cv2.putText(display_image, f"ROI {i+1}", (int(x1_display), label_y), 
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            
+            # Draw ROI preview in different color if it exists (also in original coordinates)
+            if hasattr(viewer.mouse, 'roi_preview') and viewer.mouse.roi_preview:
+                preview_roi = viewer.mouse.roi_preview
+                if len(preview_roi) >= 4:
+                    x_orig, y_orig, w_orig, h_orig = preview_roi[:4]
+                    
+                    # Convert to display coordinates
+                    x1_display, y1_display = orig_to_display(x_orig, y_orig)
+                    x2_display, y2_display = orig_to_display(x_orig + w_orig, y_orig + h_orig)
+                    
+                    # Only draw if preview ROI is visible in current view
+                    if (x2_display >= 0 and y2_display >= 0 and 
+                        x1_display < display_image.shape[1] and y1_display < display_image.shape[0]):
+                        
+                        # Clamp coordinates to display image bounds
+                        x1_display = max(0, min(x1_display, display_image.shape[1]))
+                        y1_display = max(0, min(y1_display, display_image.shape[0]))
+                        x2_display = max(0, min(x2_display, display_image.shape[1]))
+                        y2_display = max(0, min(y2_display, display_image.shape[0]))
+                        
+                        # Draw preview rectangle in yellow
+                        cv2.rectangle(display_image, (int(x1_display), int(y1_display)), 
+                                    (int(x2_display), int(y2_display)), (0, 255, 255), 2)
+                        
+                        # Draw preview label
+                        label_y = max(15, int(y1_display))
+                        cv2.putText(display_image, "Preview", (int(x1_display), label_y), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+                               
+            return display_image
+        return draw_rois_on_image
+        
+    def _create_line_drawing_method(self, viewer):
+        """Create line drawing method."""
+        def draw_lines_on_image(image, lines):
+            import cv2
+            if not lines or image is None:
+                return image
+                
+            display_image = image.copy()
+            for i, line in enumerate(lines):
+                if len(line) >= 4:
+                    x1, y1, x2, y2 = line[:4]
+                    # Draw line
+                    cv2.line(display_image, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 2)
+                    # Draw line label
+                    mid_x, mid_y = int((x1 + x2) / 2), int((y1 + y2) / 2)
+                    cv2.putText(display_image, f"L{i+1}", (mid_x, mid_y), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+            return display_image
+        return draw_lines_on_image
+        
+    def _create_custom_window_manager(self, config):
+        """Create a custom window manager that only creates process and trackbar windows."""
+        from types import SimpleNamespace
+        
+        class ThresholdWindowManager:
+            def __init__(self, config):
+                self.config = config
+                self.windows_created = False
+                
+            def create_windows(self, mouse_callback, text_mouse_callback):
+                if self.windows_created: return
+                if not self.config.enable_debug: return
+                
+                try:
+                    # Only create process window and trackbar window
+                    cv2.namedWindow(self.config.process_window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO | cv2.WINDOW_GUI_EXPANDED)
+                    cv2.resizeWindow(self.config.process_window_name, self.config.screen_width, self.config.screen_height)
+                    
+                    # Set mouse callback for zoom/pan/drawing functionality
+                    if mouse_callback:
+                        cv2.setMouseCallback(self.config.process_window_name, mouse_callback)
+                    
+                    # Create trackbar window if trackbar definitions exist
+                    if self.config.trackbar:
+                        cv2.namedWindow(self.config.trackbar_window_name, cv2.WINDOW_AUTOSIZE)
+                        if hasattr(self.config, 'trackbar_window_width') and hasattr(self.config, 'trackbar_window_height'):
+                            cv2.resizeWindow(self.config.trackbar_window_name, self.config.trackbar_window_width, self.config.trackbar_window_height)
+                        else:
+                            cv2.resizeWindow(self.config.trackbar_window_name, 400, 300)  # Default size
+                    
+                    self.windows_created = True
+                    print(f"[Threshold Windows] Created process window: {self.config.process_window_name}")
+                    print(f"[Threshold Windows] Created trackbar window: {self.config.trackbar_window_name}")
+                    
+                except Exception as e:
+                    print(f"Error creating threshold windows: {e}")
+                    self.windows_created = False
+                    
+            def destroy_all_windows(self):
+                if self.windows_created:
+                    try:
+                        # Only destroy our specific windows
+                        if cv2.getWindowProperty(self.config.process_window_name, cv2.WND_PROP_VISIBLE) >= 1:
+                            cv2.destroyWindow(self.config.process_window_name)
+                    except: pass
+                    try:
+                        if self.config.trackbar and cv2.getWindowProperty(self.config.trackbar_window_name, cv2.WND_PROP_VISIBLE) >= 1:
+                            cv2.destroyWindow(self.config.trackbar_window_name)
+                    except: pass
+                    self.windows_created = False
+                    
+            def resize_process_window(self, width, height):
+                if not self.windows_created: return
+                try:
+                    if cv2.getWindowProperty(self.config.process_window_name, cv2.WND_PROP_VISIBLE) < 1:
+                        return
+                    min_w, min_h = self.config.min_window_size
+                    max_w, max_h = self.config.screen_width * 2, self.config.screen_height * 2
+                    if self.config.desktop_resolution:
+                        max_w, max_h = self.config.desktop_resolution
+                    width = max(min_w, min(width, max_w))
+                    height = max(min_h, min(height, max_h))
+                    cv2.resizeWindow(self.config.process_window_name, width, height)
+                except: pass
+        
+        return ThresholdWindowManager(config)
+        
+    def _get_initial_grayscale_trackbars(self):
+        """Get initial trackbar definitions for grayscale."""
+        # Create lambdas to avoid method reference issues
+        return [
+            make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=lambda v: self._on_threshold_type_change(v)),
+            make_trackbar("Threshold", "threshold", 255, 127, custom_callback=lambda v: self._on_param_change(v)),
+            make_trackbar("Max Value", "max_value", 255, 255, custom_callback=lambda v: self._on_param_change(v))
+        ]
+        
+    def _get_initial_color_trackbars(self):
+        """Get initial trackbar definitions for color spaces."""
+        ranges = self.ranges.get(self.color_space, {})
+        trackbars = []
+        
+        # Add range trackbars by default
+        for channel, (min_val, max_val) in ranges.items():
+            trackbars.extend([
+                make_trackbar(f"{channel} Min", f"{channel.lower()}_min", max_val, min_val, custom_callback=lambda v: self._on_param_change(v)),
+                make_trackbar(f"{channel} Max", f"{channel.lower()}_max", max_val, max_val, custom_callback=lambda v: self._on_param_change(v))
+            ])
+            
+        return trackbars
+        
+    def _on_param_change(self, value=None):
+        """Handle parameter changes from trackbars."""
+        try:
+            if self.threshold_viewer and not self.is_processing:
+                # Force immediate threshold update
+                self.update_threshold()
+                self.viewer.log(f"Parameter updated, value: {value}")
+        except Exception as e:
+            self.viewer.log(f"Error in _on_param_change: {e}")
+            import traceback
+            traceback.print_exc()
+            
+    def _threshold_processor(self, params, log_func):
+        """Process images for the threshold viewer."""
+        if not self.viewer._internal_images or self.is_processing:
+            return [(np.zeros((100, 100, 1), dtype=np.uint8), "No Image")]
+            
+        self.is_processing = True
+        try:
+            # Get current image from main viewer
+            current_idx = self.viewer.trackbar.parameters.get('show', 0)
+            image, title = self.viewer._internal_images[current_idx]
+            
+            # Apply thresholding
+            thresholded_image = self._apply_thresholding(image, params)
+            
+            return [(thresholded_image, f"Thresholded - {self.color_space}")]
+        finally:
+            self.is_processing = False
+            
+    def _apply_thresholding(self, image, params):
+        """Apply thresholding to the image using current parameters."""
+        processor = ThresholdProcessor(image)
+        converted_image = processor.convert_color_space(self.color_space)
+
+        if self.color_space == "Grayscale":
+            # Get parameters
+            threshold_value = params.get("threshold", 127)
+            max_value = params.get("max_value", 255)
+            
+            # Get threshold type
+            threshold_types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
+            type_idx = params.get("threshold_type_idx", 0)
+            threshold_type = threshold_types[min(type_idx, len(threshold_types)-1)]
+            
+            # Log the threshold type being applied
+            self.viewer.log(f"Applying threshold type: {threshold_type} (idx: {type_idx})")
+            
+            # Update UI combo box if it exists
+            if self.threshold_type_var:
+                self.threshold_type_var.set(threshold_type)
+            
+            method = self.threshold_method_var.get() if self.threshold_method_var else "Simple"
+            
+            if method == "Simple":
+                return processor.apply_advanced_threshold(
+                    converted_image, threshold_value, max_value, threshold_type)
+            elif method == "Otsu":
+                return processor.apply_advanced_threshold(
+                    converted_image, threshold_value, max_value, threshold_type, use_otsu=True)
+            elif method == "Triangle":
+                return processor.apply_advanced_threshold(
+                    converted_image, threshold_value, max_value, threshold_type, use_triangle=True)
+            elif method == "Adaptive":
+                block_size = params.get("block_size", 11)
+                c_constant = params.get("c_constant", 2)
+                
+                # Get adaptive method
+                adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
+                method_idx = params.get("adaptive_method_idx", 0)
+                adaptive_method = adaptive_methods[min(method_idx, len(adaptive_methods)-1)]
+                
+                if self.adaptive_method_var:
+                    self.adaptive_method_var.set(adaptive_method)
+                
+                return processor.apply_adaptive_threshold(
+                    converted_image, max_value, adaptive_method, threshold_type, block_size, c_constant)
+            else:
+                return processor.apply_binary_threshold(converted_image, threshold_value, False)
+        else:
+            # Color space thresholding
+            method = self.threshold_method_var.get() if self.threshold_method_var else "Range"
+            
+            # Get threshold type
+            threshold_types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
+            type_idx = params.get("threshold_type_idx", 0)
+            threshold_type = threshold_types[min(type_idx, len(threshold_types)-1)]
+            
+            if self.threshold_type_var:
+                self.threshold_type_var.set(threshold_type)
+            
+            if method == "Range":
+                # Traditional range thresholding
+                lower_bounds = []
+                upper_bounds = []
+                
+                ranges = self.ranges.get(self.color_space, {})
+                for channel in ranges.keys():
+                    lower_bounds.append(params.get(f"{channel.lower()}_min", 0))
+                    upper_bounds.append(params.get(f"{channel.lower()}_max", 255))
+
+                return processor.apply_range_threshold(converted_image, lower_bounds, upper_bounds)
+            else:
+                # Advanced per-channel thresholding
+                ranges = self.ranges.get(self.color_space, {})
+                channel_params = []
+                
+                for channel in ranges.keys():
+                    channel_lower = channel.lower()
+                    channel_param = {
+                        'threshold': params.get(f"{channel_lower}_threshold", 127),
+                        'max_value': params.get(f"{channel_lower}_max_value", 255),
+                        'threshold_type': threshold_type
+                    }
+                    
+                    if method == "Adaptive":
+                        adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
+                        method_idx = params.get("adaptive_method_idx", 0)
+                        adaptive_method = adaptive_methods[min(method_idx, len(adaptive_methods)-1)]
+                        
+                        if self.adaptive_method_var:
+                            self.adaptive_method_var.set(adaptive_method)
+                        
+                        channel_param.update({
+                            'adaptive_method': adaptive_method,
+                            'block_size': params.get(f"{channel_lower}_block_size", 11),
+                            'c_constant': params.get(f"{channel_lower}_c_constant", 2)
+                        })
+                    
+                    channel_params.append(channel_param)
+                
+                thresholding_params = {
+                    'method': method,
+                    'threshold_type': threshold_type,
+                    'channels': channel_params
+                }
+                
+                return processor.apply_multi_channel_threshold(converted_image, thresholding_params)
 
     def create_trackbars(self):
         """Initialize trackbar definitions and create initial set."""
@@ -149,31 +1022,32 @@ class ThresholdingWindow:
         else:
             self._define_color_trackbars()
         
-        # Set initial method and create trackbars for it
+        # Set initial method - trackbars are already created in threshold viewer
         initial_method = "Simple" if self.color_space == "Grayscale" else "Range"
         self.current_method = initial_method
-        self._create_trackbars_for_method(initial_method)
+        
+        # Trigger initial threshold update
         self.update_threshold()
     
     def _define_grayscale_trackbars(self):
         """Define trackbar configurations for grayscale thresholding methods."""
         # Threshold Type trackbar (always shown)
-        type_config = make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=self._on_threshold_type_change)
+        type_config = make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=lambda v: self._on_threshold_type_change(v))
         
         # Common trackbars for Simple/Otsu/Triangle methods
         common_configs = [
             type_config,
-            make_trackbar("Threshold", "threshold", 255, 127, custom_callback=self.update_threshold),
-            make_trackbar("Max Value", "max_value", 255, 255, custom_callback=self.update_threshold)
+            make_trackbar("Threshold", "threshold", 255, 127, custom_callback=lambda v: self.update_threshold(v)),
+            make_trackbar("Max Value", "max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v))
         ]
         
         # Adaptive method trackbars
         adaptive_configs = [
-            make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=self._on_threshold_type_change),
-            make_trackbar("Block Size (must be odd)", "block_size", 99, 11, callback="odd", custom_callback=self.update_threshold),
-            make_trackbar("C Constant (subtract from mean)", "c_constant", 50, 2, custom_callback=self.update_threshold),
-            make_trackbar("Max Value", "max_value", 255, 255, custom_callback=self.update_threshold),
-            make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=self._on_adaptive_method_change)
+            make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=lambda v: self._on_threshold_type_change(v)),
+            make_trackbar("Block Size (must be odd)", "block_size", 99, 11, callback="odd", custom_callback=lambda v: self.update_threshold(v)),
+            make_trackbar("C Constant (subtract from mean)", "c_constant", 50, 2, custom_callback=lambda v: self.update_threshold(v)),
+            make_trackbar("Max Value", "max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v)),
+            make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=lambda v: self._on_adaptive_method_change(v))
         ]
         
         # Organize trackbars by method
@@ -190,34 +1064,34 @@ class ThresholdingWindow:
         range_configs = []
         for channel, (min_val, max_val) in ranges.items():
             range_configs.extend([
-                make_trackbar(f"{channel} Min", f"{channel.lower()}_min", max_val, min_val, custom_callback=self.update_threshold),
-                make_trackbar(f"{channel} Max", f"{channel.lower()}_max", max_val, max_val, custom_callback=self.update_threshold)
+                make_trackbar(f"{channel} Min", f"{channel.lower()}_min", max_val, min_val, custom_callback=lambda v: self.update_threshold(v)),
+                make_trackbar(f"{channel} Max", f"{channel.lower()}_max", max_val, max_val, custom_callback=lambda v: self.update_threshold(v))
             ])
         
         # Advanced thresholding trackbars (threshold type + per channel parameters)
-        type_config = make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=self._on_threshold_type_change)
+        type_config = make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=lambda v: self._on_threshold_type_change(v))
         
         advanced_configs = [type_config]
         for channel in ranges.keys():
             channel_lower = channel.lower()
             advanced_configs.extend([
-                make_trackbar(f"{channel} Threshold", f"{channel_lower}_threshold", 255, 127, custom_callback=self.update_threshold),
-                make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=self.update_threshold)
+                make_trackbar(f"{channel} Threshold", f"{channel_lower}_threshold", 255, 127, custom_callback=lambda v: self.update_threshold(v)),
+                make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v))
             ])
         
         # Adaptive thresholding trackbars (limited threshold type + adaptive parameters)
-        adaptive_type_config = make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=self._on_threshold_type_change)
+        adaptive_type_config = make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=lambda v: self._on_threshold_type_change(v))
         adaptive_configs = [
             adaptive_type_config,
-            make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=self._on_adaptive_method_change)
+            make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=lambda v: self._on_adaptive_method_change(v))
         ]
         
         for channel in ranges.keys():
             channel_lower = channel.lower()
             adaptive_configs.extend([
-                make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=self.update_threshold),
-                make_trackbar(f"{channel} Block Size (odd)", f"{channel_lower}_block_size", 99, 11, callback="odd", custom_callback=self.update_threshold),
-                make_trackbar(f"{channel} C Constant", f"{channel_lower}_c_constant", 50, 2, custom_callback=self.update_threshold)
+                make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v)),
+                make_trackbar(f"{channel} Block Size (odd)", f"{channel_lower}_block_size", 99, 11, callback="odd", custom_callback=lambda v: self.update_threshold(v)),
+                make_trackbar(f"{channel} C Constant", f"{channel_lower}_c_constant", 50, 2, custom_callback=lambda v: self.update_threshold(v))
             ])
         
         # Organize trackbars by method
@@ -227,31 +1101,6 @@ class ThresholdingWindow:
         self.method_trackbars["Triangle"] = advanced_configs
         self.method_trackbars["Adaptive"] = adaptive_configs
     
-    def _create_trackbars_for_method(self, method):
-        """Create trackbars for the specified method only."""
-        if method not in self.method_trackbars:
-            return
-            
-        # Get trackbar configs for this method
-        trackbar_configs = self.method_trackbars[method]
-        
-        # Store current trackbars for cleanup
-        self.current_trackbars = trackbar_configs
-        
-        # Create trackbars for this method
-        for config in trackbar_configs:
-            self.trackbar_manager.create_trackbar(config, self.viewer)
-    
-    def _clear_current_trackbars(self):
-        """Clear current trackbars by recreating the window."""
-        # Since OpenCV doesn't support deleting individual trackbars,
-        # we need to destroy and recreate the window
-        if hasattr(self, 'image_window_name'):
-            cv2.destroyWindow(self.image_window_name)
-            cv2.namedWindow(self.image_window_name, cv2.WINDOW_NORMAL)
-            
-        # Recreate trackbar manager
-        self.trackbar_manager = TrackbarManager(self.image_window_name)
     
     def _switch_to_method(self, new_method):
         """Switch trackbars to show only those relevant for the new method."""
@@ -262,11 +1111,20 @@ class ThresholdingWindow:
         if self.threshold_method_var:
             self.threshold_method_var.set(new_method)
             
-        # Clear current trackbars
-        self._clear_current_trackbars()
+        # Get trackbar configs for the new method - recreate them to ensure fresh callbacks
+        trackbar_configs = self._get_trackbar_configs_for_method(new_method)
         
-        # Create trackbars for new method
-        self._create_trackbars_for_method(new_method)
+        # Update the threshold viewer with new trackbars
+        if self.threshold_viewer:
+            # Clear existing trackbars by destroying and recreating viewer
+            self.threshold_viewer.cleanup_viewer()
+            
+            # Update config with new trackbars
+            self.threshold_viewer.config.trackbar = trackbar_configs
+            
+            # Recreate the viewer with new trackbars
+            self.threshold_viewer.setup_viewer(image_processor_func=self._threshold_processor)
+            self.trackbar_manager = self.threshold_viewer.trackbar
         
         # Update current method
         self.current_method = new_method
@@ -280,6 +1138,113 @@ class ThresholdingWindow:
         
         # Log the switch
         self.viewer.log(f"Switched to {new_method} thresholding - trackbars updated")
+        
+    def _get_trackbar_configs_for_method(self, method):
+        """Get fresh trackbar configurations for the specified method with proper callbacks."""
+        if self.color_space == "Grayscale":
+            return self._get_grayscale_trackbars_for_method(method)
+        else:
+            return self._get_color_trackbars_for_method(method)
+            
+    def _get_grayscale_trackbars_for_method(self, method):
+        """Get grayscale trackbar configurations for the specified method."""
+        
+        # Create safer callback functions that handle errors
+        def safe_threshold_type_callback(v):
+            try:
+                return self._on_threshold_type_change(v)
+            except Exception as e:
+                print(f"Threshold type callback error: {e}")
+                
+        def safe_param_callback(v):
+            try:
+                return self._on_param_change(v)
+            except Exception as e:
+                print(f"Param callback error: {e}")
+                
+        def safe_adaptive_callback(v):
+            try:
+                return self._on_adaptive_method_change(v)
+            except Exception as e:
+                print(f"Adaptive callback error: {e}")
+        
+        if method == "Simple" or method == "Otsu" or method == "Triangle":
+            return [
+                make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=safe_threshold_type_callback),
+                make_trackbar("Threshold", "threshold", 255, 127, custom_callback=safe_param_callback),
+                make_trackbar("Max Value", "max_value", 255, 255, custom_callback=safe_param_callback)
+            ]
+        elif method == "Adaptive":
+            return [
+                make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=safe_threshold_type_callback),
+                make_trackbar("Block Size (must be odd)", "block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
+                make_trackbar("C Constant (subtract from mean)", "c_constant", 50, 2, custom_callback=safe_param_callback),
+                make_trackbar("Max Value", "max_value", 255, 255, custom_callback=safe_param_callback),
+                make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=safe_adaptive_callback)
+            ]
+        else:
+            return []
+            
+    def _get_color_trackbars_for_method(self, method):
+        """Get color space trackbar configurations for the specified method."""
+        ranges = self.ranges.get(self.color_space, {})
+        
+        # Create safer callback functions that handle errors
+        def safe_threshold_type_callback(v):
+            try:
+                return self._on_threshold_type_change(v)
+            except Exception as e:
+                print(f"Color threshold type callback error: {e}")
+                
+        def safe_param_callback(v):
+            try:
+                return self._on_param_change(v)
+            except Exception as e:
+                print(f"Color param callback error: {e}")
+                
+        def safe_adaptive_callback(v):
+            try:
+                return self._on_adaptive_method_change(v)
+            except Exception as e:
+                print(f"Color adaptive callback error: {e}")
+        
+        if method == "Range":
+            trackbars = []
+            for channel, (min_val, max_val) in ranges.items():
+                trackbars.extend([
+                    make_trackbar(f"{channel} Min", f"{channel.lower()}_min", max_val, min_val, custom_callback=safe_param_callback),
+                    make_trackbar(f"{channel} Max", f"{channel.lower()}_max", max_val, max_val, custom_callback=safe_param_callback)
+                ])
+            return trackbars
+            
+        elif method == "Simple" or method == "Otsu" or method == "Triangle":
+            trackbars = [
+                make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=safe_threshold_type_callback)
+            ]
+            for channel in ranges.keys():
+                channel_lower = channel.lower()
+                trackbars.extend([
+                    make_trackbar(f"{channel} Threshold", f"{channel_lower}_threshold", 255, 127, custom_callback=safe_param_callback),
+                    make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=safe_param_callback)
+                ])
+            return trackbars
+            
+        elif method == "Adaptive":
+            trackbars = [
+                make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=safe_threshold_type_callback),
+                make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=safe_adaptive_callback)
+            ]
+            for channel in ranges.keys():
+                channel_lower = channel.lower()
+                trackbars.extend([
+                    make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=safe_param_callback),
+                    make_trackbar(f"{channel} Block Size (odd)", f"{channel_lower}_block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
+                    make_trackbar(f"{channel} C Constant", f"{channel_lower}_c_constant", 50, 2, custom_callback=safe_param_callback)
+                ])
+            return trackbars
+            
+        else:
+            return []
     
     def _update_ui_for_method(self, method):
         """Update UI elements to reflect the selected method."""
@@ -309,21 +1274,40 @@ class ThresholdingWindow:
     
     def _on_threshold_type_change(self, value):
         """Handle threshold type trackbar changes."""
-        threshold_types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
-        if self.threshold_type_var:
-            self.threshold_type_var.set(threshold_types[value])
-        self.update_threshold()
+        try:
+            threshold_types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
+            if self.threshold_type_var and value < len(threshold_types):
+                self.threshold_type_var.set(threshold_types[value])
+            
+            # Ensure the parameter is updated in the trackbar manager
+            if self.threshold_viewer and self.threshold_viewer.trackbar:
+                self.threshold_viewer.trackbar.parameters["threshold_type_idx"] = value
+            
+            # Force threshold update
+            self.update_threshold()
+            
+            self.viewer.log(f"Threshold type changed to: {threshold_types[min(value, len(threshold_types)-1)]}")
+            
+        except Exception as e:
+            self.viewer.log(f"Error in _on_threshold_type_change: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _on_adaptive_method_change(self, value):
         """Handle adaptive method trackbar changes."""
-        adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
-        if self.adaptive_method_var:
-            self.adaptive_method_var.set(adaptive_methods[value])
-        self.update_threshold()
+        try:
+            adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
+            if self.adaptive_method_var:
+                self.adaptive_method_var.set(adaptive_methods[value])
+            self._on_param_change(value)
+        except Exception as e:
+            print(f"Error in _on_adaptive_method_change: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _on_dropdown_threshold_type_change(self, event=None):
         """Handle threshold type dropdown changes - update trackbar."""
-        if not self.threshold_type_var or not self.trackbar_manager:
+        if not self.threshold_type_var or not self.threshold_viewer or not self.threshold_viewer.trackbar:
             return
             
         # Get selected threshold type from dropdown
@@ -343,22 +1327,23 @@ class ThresholdingWindow:
             "Thresh Type [0=BIN,1=INV]"
         ]
         
+        trackbar_window = self.threshold_viewer.config.trackbar_window_name
         for trackbar_name in trackbar_names:
             try:
-                cv2.setTrackbarPos(trackbar_name, self.image_window_name, type_index)
+                cv2.setTrackbarPos(trackbar_name, trackbar_window, type_index)
                 break  # Success, no need to try other names
             except:
                 continue  # Try next trackbar name
             
         # Update internal parameter
-        self.trackbar_manager.parameters["threshold_type_idx"] = type_index
+        self.threshold_viewer.trackbar.parameters["threshold_type_idx"] = type_index
         
         # Update thresholding
         self.update_threshold()
     
     def _on_dropdown_adaptive_method_change(self, event=None):
         """Handle adaptive method dropdown changes - update trackbar."""
-        if not self.adaptive_method_var or not self.trackbar_manager:
+        if not self.adaptive_method_var or not self.threshold_viewer or not self.threshold_viewer.trackbar:
             return
             
         # Get selected adaptive method from dropdown
@@ -373,13 +1358,14 @@ class ThresholdingWindow:
         
         # Update trackbar to match dropdown selection
         try:
-            cv2.setTrackbarPos("Adaptive [0=MEAN,1=GAUSSIAN]", self.image_window_name, method_index)
+            trackbar_window = self.threshold_viewer.config.trackbar_window_name
+            cv2.setTrackbarPos("Adaptive [0=MEAN,1=GAUSSIAN]", trackbar_window, method_index)
         except:
             # Trackbar might not exist yet
             pass
             
         # Update internal parameter
-        self.trackbar_manager.parameters["adaptive_method_idx"] = method_index
+        self.threshold_viewer.trackbar.parameters["adaptive_method_idx"] = method_index
         
         # Update thresholding
         self.update_threshold()
@@ -407,136 +1393,71 @@ class ThresholdingWindow:
         self.update_threshold()
 
     def update_threshold(self, _=None):
-        if not self.viewer._internal_images: return
-        current_idx = self.viewer.trackbar.parameters.get('show', 0)
-        image, _ = self.viewer._internal_images[current_idx]
-
-        processor = ThresholdProcessor(image)
-        converted_image = processor.convert_color_space(self.color_space)
-
-        if self.color_space == "Grayscale":
-            # Get parameters from trackbars and UI
-            threshold_value = self.trackbar_manager.parameters.get("threshold", 127)
-            max_value = self.trackbar_manager.parameters.get("max_value", 255)
+        """Update the thresholding display by triggering the threshold viewer."""
+        if not self.threshold_viewer or self.is_processing:
+            return
             
-            # Get threshold type from trackbar
-            threshold_types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
-            type_idx = self.trackbar_manager.parameters.get("threshold_type_idx", 0)
-            threshold_type = threshold_types[min(type_idx, len(threshold_types)-1)]
+        try:
+            self.is_processing = True
             
-            # Update UI combo box if it exists
-            if self.threshold_type_var:
-                self.threshold_type_var.set(threshold_type)
-            
-            method = self.threshold_method_var.get() if self.threshold_method_var else "Simple"
-            
-            if method == "Simple":
-                thresholded_image = processor.apply_advanced_threshold(
-                    converted_image, threshold_value, max_value, threshold_type)
-            elif method == "Otsu":
-                thresholded_image = processor.apply_advanced_threshold(
-                    converted_image, threshold_value, max_value, threshold_type, use_otsu=True)
-            elif method == "Triangle":
-                thresholded_image = processor.apply_advanced_threshold(
-                    converted_image, threshold_value, max_value, threshold_type, use_triangle=True)
-            elif method == "Adaptive":
-                block_size = self.trackbar_manager.parameters.get("block_size", 11)
-                c_constant = self.trackbar_manager.parameters.get("c_constant", 2)
-                
-                # Get adaptive method from trackbar
-                adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
-                method_idx = self.trackbar_manager.parameters.get("adaptive_method_idx", 0)
-                adaptive_method = adaptive_methods[min(method_idx, len(adaptive_methods)-1)]
-                
-                # Update UI combo box if it exists
-                if self.adaptive_method_var:
-                    self.adaptive_method_var.set(adaptive_method)
-                
-                thresholded_image = processor.apply_adaptive_threshold(
-                    converted_image, max_value, adaptive_method, threshold_type, block_size, c_constant)
-            else:
-                # Fallback to simple binary threshold
-                thresholded_image = processor.apply_binary_threshold(converted_image, threshold_value, False)
-        else:
-            # Color space thresholding with advanced methods
-            method = self.threshold_method_var.get() if self.threshold_method_var else "Range"
-            
-            # Get threshold type from trackbar for color spaces too
-            threshold_types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
-            type_idx = self.trackbar_manager.parameters.get("threshold_type_idx", 0)
-            threshold_type = threshold_types[min(type_idx, len(threshold_types)-1)]
-            
-            # Update UI combo box if it exists
-            if self.threshold_type_var:
-                self.threshold_type_var.set(threshold_type)
-            
-            if method == "Range":
-                # Traditional range thresholding
-                lower_bounds = []
-                upper_bounds = []
-                
-                ranges = self.ranges.get(self.color_space, {})
-                for channel in ranges.keys():
-                    lower_bounds.append(self.trackbar_manager.parameters.get(f"{channel.lower()}_min", 0))
-                    upper_bounds.append(self.trackbar_manager.parameters.get(f"{channel.lower()}_max", 255))
-
-                thresholded_image = processor.apply_range_threshold(converted_image, lower_bounds, upper_bounds)
-            else:
-                # Advanced per-channel thresholding
-                ranges = self.ranges.get(self.color_space, {})
-                channel_params = []
-                
-                for channel in ranges.keys():
-                    channel_lower = channel.lower()
-                    params = {
-                        'threshold': self.trackbar_manager.parameters.get(f"{channel_lower}_threshold", 127),
-                        'max_value': self.trackbar_manager.parameters.get(f"{channel_lower}_max_value", 255),
-                        'threshold_type': threshold_type
-                    }
+            # Get current image from main viewer
+            if self.viewer._internal_images:
+                current_idx = self.viewer.trackbar.parameters.get('show', 0)
+                if current_idx < len(self.viewer._internal_images):
+                    source_image, title = self.viewer._internal_images[current_idx]
                     
-                    if method == "Adaptive":
-                        # Get adaptive method from trackbar
-                        adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
-                        method_idx = self.trackbar_manager.parameters.get("adaptive_method_idx", 0)
-                        adaptive_method = adaptive_methods[min(method_idx, len(adaptive_methods)-1)]
-                        
-                        # Update UI combo box if it exists
-                        if self.adaptive_method_var:
-                            self.adaptive_method_var.set(adaptive_method)
-                        
-                        params.update({
-                            'adaptive_method': adaptive_method,
-                            'block_size': self.trackbar_manager.parameters.get(f"{channel_lower}_block_size", 11),
-                            'c_constant': self.trackbar_manager.parameters.get(f"{channel_lower}_c_constant", 2)
-                        })
+                    # Apply thresholding using current parameters
+                    params = dict(self.threshold_viewer.trackbar.parameters)
                     
-                    channel_params.append(params)
-                
-                thresholding_params = {
-                    'method': method,
-                    'threshold_type': threshold_type,
-                    'channels': channel_params
-                }
-                
-                thresholded_image = processor.apply_multi_channel_threshold(converted_image, thresholding_params)
-
-        cv2.imshow(self.image_window_name, thresholded_image)
-        
-        # Update status display
-        self._update_status_display()
+                    # Log all parameters for debugging
+                    self.viewer.log(f"Update threshold with params: {params}")
+                    
+                    thresholded_image = self._apply_thresholding(source_image, params)
+                    
+                    # Update the threshold viewer's internal images directly
+                    self.threshold_viewer._internal_images = [(thresholded_image, f"Thresholded - {self.color_space}")]
+                    
+                    # Force multiple display refresh attempts
+                    if (hasattr(self.threshold_viewer, 'windows') and 
+                        self.threshold_viewer.windows.windows_created and 
+                        self.threshold_viewer._should_continue_loop):
+                        
+                        # Force immediate display update
+                        self.threshold_viewer._process_frame_and_check_quit()
+                        
+                        # Also try direct imshow
+                        try:
+                            import cv2
+                            cv2.imshow(self.threshold_viewer.config.process_window_name, thresholded_image)
+                            self.viewer.log("Forced direct image display update")
+                        except Exception as e:
+                            self.viewer.log(f"Direct imshow failed: {e}")
+            
+            # Update status display
+            self._update_status_display()
+            
+        except Exception as e:
+            self.viewer.log(f"Error in update_threshold: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            self.is_processing = False
 
     def _update_status_display(self):
         """Update the status display with current parameters."""
-        if not hasattr(self, 'status_text') or not self.status_text:
+        if not hasattr(self, 'status_text') or not self.status_text or not self.threshold_viewer:
             return
             
-        # Get current parameters
+        # Get current parameters from threshold viewer
         params = []
         method = self.threshold_method_var.get() if self.threshold_method_var else "Unknown"
         
+        # Get parameters from threshold viewer's trackbar manager
+        viewer_params = self.threshold_viewer.trackbar.parameters if self.threshold_viewer.trackbar else {}
+        
         # Threshold type
         threshold_types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
-        type_idx = self.trackbar_manager.parameters.get("threshold_type_idx", 0) if self.trackbar_manager else 0
+        type_idx = viewer_params.get("threshold_type_idx", 0)
         threshold_type = threshold_types[min(type_idx, len(threshold_types)-1)]
         
         params.append(f"Method: {method}")
@@ -545,25 +1466,25 @@ class ThresholdingWindow:
         if self.color_space == "Grayscale":
             if method == "Adaptive":
                 adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
-                method_idx = self.trackbar_manager.parameters.get("adaptive_method_idx", 0) if self.trackbar_manager else 0
+                method_idx = viewer_params.get("adaptive_method_idx", 0)
                 adaptive_method = adaptive_methods[min(method_idx, len(adaptive_methods)-1)]
-                block_size = self.trackbar_manager.parameters.get("block_size", 11) if self.trackbar_manager else 11
-                c_constant = self.trackbar_manager.parameters.get("c_constant", 2) if self.trackbar_manager else 2
+                block_size = viewer_params.get("block_size", 11)
+                c_constant = viewer_params.get("c_constant", 2)
                 params.append(f"Adaptive: {adaptive_method}")
                 params.append(f"Block: {block_size}, C: {c_constant}")
             else:
-                threshold = self.trackbar_manager.parameters.get("threshold", 127) if self.trackbar_manager else 127
-                max_val = self.trackbar_manager.parameters.get("max_value", 255) if self.trackbar_manager else 255
+                threshold = viewer_params.get("threshold", 127)
+                max_val = viewer_params.get("max_value", 255)
                 params.append(f"Thresh: {threshold}, Max: {max_val}")
         else:
             params.append(f"Color Space: {self.color_space}")
-            if method != "Range" and self.trackbar_manager:
+            if method != "Range":
                 # Show first channel's parameters as example
                 ranges = self.ranges.get(self.color_space, {})
                 if ranges:
                     first_channel = list(ranges.keys())[0].lower()
-                    thresh = self.trackbar_manager.parameters.get(f"{first_channel}_threshold", 127)
-                    max_val = self.trackbar_manager.parameters.get(f"{first_channel}_max_value", 255)
+                    thresh = viewer_params.get(f"{first_channel}_threshold", 127)
+                    max_val = viewer_params.get(f"{first_channel}_max_value", 255)
                     params.append(f"{first_channel.upper()}: T={thresh}, M={max_val}")
         
         # Update status text
@@ -575,14 +1496,14 @@ class ThresholdingWindow:
 
     def _save_config(self):
         """Save current thresholding configuration to file."""
-        if not self.trackbar_manager:
+        if not self.threshold_viewer or not self.threshold_viewer.trackbar:
             return
             
         try:
             config_data = {
                 "color_space": self.color_space,
                 "method": self.threshold_method_var.get() if self.threshold_method_var else "Unknown",
-                "parameters": dict(self.trackbar_manager.parameters)
+                "parameters": dict(self.threshold_viewer.trackbar.parameters)
             }
             
             filename = filedialog.asksaveasfilename(
@@ -601,7 +1522,7 @@ class ThresholdingWindow:
 
     def _load_config(self):
         """Load thresholding configuration from file."""
-        if not self.trackbar_manager:
+        if not self.threshold_viewer or not self.threshold_viewer.trackbar:
             return
             
         try:
@@ -617,13 +1538,13 @@ class ThresholdingWindow:
                 # Load parameters
                 if "parameters" in config_data:
                     for param_name, value in config_data["parameters"].items():
-                        if param_name in self.trackbar_manager.parameters:
-                            # Update trackbar value
+                        if param_name in self.threshold_viewer.trackbar.parameters:
+                            # Update trackbar value in threshold viewer
                             try:
-                                cv2.setTrackbarPos(param_name, self.image_window_name, value)
+                                cv2.setTrackbarPos(param_name, self.threshold_viewer.config.trackbar_window_name, value)
                             except:
                                 pass  # Trackbar might not exist
-                            self.trackbar_manager.parameters[param_name] = value
+                            self.threshold_viewer.trackbar.parameters[param_name] = value
                 
                 # Update method if available
                 if "method" in config_data and self.threshold_method_var:
@@ -719,17 +1640,19 @@ class ThresholdingWindow:
             # Set method
             if "method" in preset_data and self.threshold_method_var:
                 self.threshold_method_var.set(preset_data["method"])
+                # Switch to the new method
+                self._switch_to_method(preset_data["method"])
             
             # Set parameters
-            if "parameters" in preset_data and self.trackbar_manager:
+            if "parameters" in preset_data and self.threshold_viewer and self.threshold_viewer.trackbar:
                 for param_name, value in preset_data["parameters"].items():
-                    if param_name in self.trackbar_manager.parameters:
-                        # Update trackbar value
+                    if param_name in self.threshold_viewer.trackbar.parameters:
+                        # Update trackbar value in threshold viewer
                         try:
-                            cv2.setTrackbarPos(param_name, self.image_window_name, value)
+                            cv2.setTrackbarPos(param_name, self.threshold_viewer.config.trackbar_window_name, value)
                         except:
                             pass
-                        self.trackbar_manager.parameters[param_name] = value
+                        self.threshold_viewer.trackbar.parameters[param_name] = value
             
             # Update thresholding
             self.update_threshold()
@@ -752,16 +1675,17 @@ class ThresholdingWindow:
                 if hasattr(self, 'viewer'):
                     self.viewer.log(f"Error in close callback: {e}")
         
+        # Clean up the dedicated threshold viewer
+        if self.threshold_viewer:
+            try:
+                self.threshold_viewer.cleanup_viewer()
+                self.threshold_viewer = None
+            except Exception as e:
+                if hasattr(self, 'viewer'):
+                    self.viewer.log(f"Error cleaning up threshold viewer: {e}")
+        
         if self.window_created and self.root:
             self.root.destroy()
             self.root = None
-        
-        # Check if the image window exists before destroying it
-        if hasattr(self, 'image_window_name'):
-            try:
-                if cv2.getWindowProperty(self.image_window_name, cv2.WND_PROP_VISIBLE) >= 1:
-                    cv2.destroyWindow(self.image_window_name)
-            except cv2.error:
-                pass  # Window already destroyed
             
         self.window_created = False
