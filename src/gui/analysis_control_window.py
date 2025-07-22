@@ -1,0 +1,652 @@
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+import os
+import json
+from .thresholding_manager import ThresholdingManager
+from .theme_manager import ThemeManager
+from .enhanced_widgets import ComboboxWithIndicator
+from .enhanced_export_dialog import EnhancedExportDialog
+from .plot_customization_dialog import PlotCustomizationDialog
+
+TKINTER_AVAILABLE = True
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    TKINTER_AVAILABLE = False
+
+class Tooltip:
+    """
+    Create a tooltip for a given widget.
+    """
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip_window = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+
+    def show_tooltip(self, event):
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+
+        self.tooltip_window = tk.Toplevel(self.widget)
+        self.tooltip_window.wm_overrideredirect(True)
+        self.tooltip_window.wm_geometry(f"+{x}+{y}")
+
+        label = tk.Label(self.tooltip_window, text=self.text, justify='left',
+                         background="#ffffe0", relief='solid', borderwidth=1,
+                         font=("tahoma", "8", "normal"))
+        label.pack(ipadx=1)
+
+    def hide_tooltip(self, event):
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+        self.tooltip_window = None
+
+class AnalysisControlWindow:
+    """Professional tkinter-based analysis control window with buttons and selectors."""
+    
+    def __init__(self, viewer: 'ImageViewer'):
+        self.viewer = viewer
+        self.window_created = False
+        self.roi_selection = 0
+        self.line_selection = 0
+        self.polygon_selection = 0
+        self.root = None
+        self.theme_manager = ThemeManager(use_dark_mode=True)
+        self.thresholding_manager = ThresholdingManager(viewer)
+        
+        self.active_buttons = {
+            'line_mode': False,
+            'polygon_mode': False,
+            'thresholding': False
+        }
+        self.quick_access_buttons = {}
+        
+    def create_window(self):
+        """Create the analysis control window with enhanced UI."""
+        if self.window_created or not self.viewer.config.enable_debug or not TKINTER_AVAILABLE:
+            return
+
+        try:
+            if not hasattr(tk, '_default_root') or tk._default_root is None:
+                root = tk.Tk()
+                root.withdraw()
+
+            self.root = tk.Toplevel()
+            self.root.title("Analysis Controls")
+            self.root.geometry("400x600")
+            self.root.minsize(350, 500)
+
+            self.theme_manager.configure_theme(self.root)
+            
+            # Create a container frame
+            container = ttk.Frame(self.root)
+            container.pack(fill=tk.BOTH, expand=True)
+            
+            # Create canvas with scrollbar
+            canvas = tk.Canvas(container)
+            scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+            
+            # Create a main frame inside the canvas
+            main_frame = ttk.Frame(canvas, style=self.theme_manager.get_frame_style())
+            
+            # Configure the canvas
+            canvas.configure(yscrollcommand=scrollbar.set)
+            canvas.create_window((0, 0), window=main_frame, anchor="nw")
+            
+            # Pack the canvas and scrollbar
+            canvas.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+            
+            # Update the scrollregion when the main_frame changes size
+            main_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+            
+            # Add padding to the main frame
+            main_frame.pack_configure(padx=5, pady=5)
+
+            self._create_quick_access_section(main_frame)
+            self._create_selection_section(main_frame)
+            self._create_analysis_section(main_frame)
+            self._create_drawing_section(main_frame)
+            self._create_export_section(main_frame)
+
+            self.update_selectors()
+            self._update_quick_access_buttons()
+            self.window_created = True
+            self.viewer.log("Analysis control window created")
+            self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+
+        except Exception as e:
+            self.viewer.log(f"Failed to create analysis control window: {e}")
+            self.window_created = False
+
+    def _on_canvas_configure(self, event):
+        """Update the scrollable frame width when the canvas is resized."""
+        try:
+            # Update the width of the scrollable frame to match the canvas width
+            canvas_width = event.width
+            self.canvas.itemconfig(self.canvas_frame, width=canvas_width)
+            
+            # Also update the scrollregion to ensure all content is accessible
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        except Exception as e:
+            # Safely handle any exceptions that might occur during canvas configuration
+            if self.viewer:
+                self.viewer.log(f"Error configuring canvas: {e}")
+            pass
+
+    def _create_section_frame(self, parent, title):
+        section_frame = ttk.Frame(parent, style=self.theme_manager.get_frame_style())
+        section_frame.pack(fill='x', pady=5)
+        
+        inner_frame = ttk.Frame(section_frame, style=self.theme_manager.get_frame_style())
+        inner_frame.pack(fill='x', padx=10, pady=10)
+        
+        header = ttk.Label(inner_frame, text=title, style="Header.TLabel")
+        header.pack(fill='x', pady=(0, 5))
+        
+        separator = ttk.Separator(inner_frame, orient='horizontal')
+        separator.pack(fill='x', pady=(0, 10))
+        
+        return inner_frame
+
+    def _create_selection_section(self, parent_frame):
+        selection_frame = self._create_section_frame(parent_frame, "Selection")
+
+        roi_frame = ttk.Frame(selection_frame, style=self.theme_manager.get_frame_style())
+        roi_frame.pack(fill='x', pady=2)
+        roi_label = ttk.Label(roi_frame, text="ROI:")
+        roi_label.pack(side=tk.LEFT, padx=(0, 10))
+        Tooltip(roi_label, "Select a region of interest for analysis")
+        
+        self.roi_var = tk.StringVar(value="Full Image")
+        self.roi_combo = ComboboxWithIndicator(
+            roi_frame, 
+            theme_manager=self.theme_manager,
+            textvariable=self.roi_var, 
+            state="readonly",
+            max_dropdown_items=10
+        )
+        self.roi_combo.pack(fill='x', expand=True)
+        self.roi_combo.bind('<<ComboboxSelected>>', self._on_roi_select)
+        Tooltip(self.roi_combo, "Choose a specific region of interest or use the full image")
+
+        line_frame = ttk.Frame(selection_frame, style=self.theme_manager.get_frame_style())
+        line_frame.pack(fill='x', pady=2)
+        line_label = ttk.Label(line_frame, text="Line:")
+        line_label.pack(side=tk.LEFT, padx=(0, 10))
+        Tooltip(line_label, "Select a line for pixel profile analysis")
+        
+        self.line_var = tk.StringVar(value="All Lines")
+        self.line_combo = ComboboxWithIndicator(
+            line_frame, 
+            theme_manager=self.theme_manager,
+            textvariable=self.line_var, 
+            state="readonly",
+            max_dropdown_items=10
+        )
+        self.line_combo.pack(fill='x', expand=True)
+        self.line_combo.bind('<<ComboboxSelected>>', self._on_line_select)
+        Tooltip(self.line_combo, "Choose a specific line or analyze all lines")
+
+        poly_frame = ttk.Frame(selection_frame, style=self.theme_manager.get_frame_style())
+        poly_frame.pack(fill='x', pady=2)
+        poly_label = ttk.Label(poly_frame, text="Polygon:")
+        poly_label.pack(side=tk.LEFT, padx=(0, 10))
+        Tooltip(poly_label, "Select a polygon for area analysis")
+        
+        self.polygon_var = tk.StringVar(value="All Polygons")
+        self.polygon_combo = ComboboxWithIndicator(
+            poly_frame, 
+            theme_manager=self.theme_manager,
+            textvariable=self.polygon_var, 
+            state="readonly",
+            max_dropdown_items=10
+        )
+        self.polygon_combo.pack(fill='x', expand=True)
+        self.polygon_combo.bind('<<ComboboxSelected>>', self._on_polygon_select)
+        Tooltip(self.polygon_combo, "Choose a specific polygon or analyze all polygons")
+
+    def _create_analysis_section(self, parent_frame):
+        analysis_frame = self._create_section_frame(parent_frame, "Analysis")
+        
+        btn_style = self.theme_manager.get_button_style("primary")
+        hist_btn = ttk.Button(analysis_frame, text="Show Histogram", command=self._show_histogram, style=btn_style)
+        hist_btn.pack(fill='x', pady=3)
+        Tooltip(hist_btn, "Display histogram of the selected ROI or polygon")
+
+        prof_btn = ttk.Button(analysis_frame, text="Show Profiles", command=self._show_profiles, style=btn_style)
+        prof_btn.pack(fill='x', pady=3)
+        Tooltip(prof_btn, "Display pixel profiles of the selected lines")
+
+        thresh_btn = ttk.Button(analysis_frame, text="Thresholding", command=self._open_thresholding_window, style=btn_style)
+        thresh_btn.pack(fill='x', pady=3)
+        Tooltip(thresh_btn, "Open the thresholding window")
+        
+        customize_btn = ttk.Button(analysis_frame, text="Customize Plots", command=self._open_plot_customization, style=btn_style)
+        customize_btn.pack(fill='x', pady=3)
+        Tooltip(customize_btn, "Customize plot appearance and save presets")
+
+    def _create_drawing_section(self, parent_frame):
+        drawing_frame = self._create_section_frame(parent_frame, "Drawing Tools")
+
+        btn_style = self.theme_manager.get_button_style("secondary")
+        line_mode_btn = ttk.Button(drawing_frame, text="Toggle Line Mode", command=self._toggle_line_mode, style=btn_style)
+        line_mode_btn.pack(fill='x', pady=2)
+        Tooltip(line_mode_btn, "Toggle drawing lines")
+
+        poly_mode_btn = ttk.Button(drawing_frame, text="Toggle Polygon Mode", command=self._toggle_polygon_mode, style=btn_style)
+        poly_mode_btn.pack(fill='x', pady=2)
+        Tooltip(poly_mode_btn, "Toggle drawing polygons")
+
+        undo_btn = ttk.Button(drawing_frame, text="Undo Last Point", command=self._undo_last_point, style=btn_style)
+        undo_btn.pack(fill='x', pady=2)
+        Tooltip(undo_btn, "Undo the last point of the current polygon")
+
+        clear_last_btn = ttk.Button(drawing_frame, text="Clear Last Polygon", command=self._clear_last_polygon, style=btn_style)
+        clear_last_btn.pack(fill='x', pady=2)
+        Tooltip(clear_last_btn, "Clear the last drawn polygon")
+
+        clear_all_btn = ttk.Button(drawing_frame, text="Clear All", command=self._clear_all, style=btn_style)
+        clear_all_btn.pack(fill='x', pady=2)
+        Tooltip(clear_all_btn, "Clear all ROIs, lines, and polygons")
+
+    def _create_export_section(self, parent_frame):
+        export_frame = self._create_section_frame(parent_frame, "Export")
+        
+        btn_style = self.theme_manager.get_button_style()
+        export_data_btn = ttk.Button(export_frame, text="Export Analysis Data", command=self._export_analysis_data, style=btn_style)
+        export_data_btn.pack(fill='x', pady=3)
+        Tooltip(export_data_btn, "Export histogram or profile data")
+
+        export_poly_btn = ttk.Button(export_frame, text="Export Polygons", command=self._export_polygons, style=btn_style)
+        export_poly_btn.pack(fill='x', pady=3)
+        Tooltip(export_poly_btn, "Export polygons to a file")
+
+        close_plots_btn = ttk.Button(export_frame, text="Close Plots", command=self._close_plots, style=btn_style)
+        close_plots_btn.pack(fill='x', pady=3)
+        Tooltip(close_plots_btn, "Close all open plots")
+    
+    def update_selectors(self):
+        if not self.window_created: return
+        try:
+            # Update ROI selector
+            try:
+                roi_options = ["Full Image"] + [f"ROI {i+1}" for i in range(len(self.viewer.mouse.draw_rects))]
+                self.roi_combo['values'] = roi_options  # Use direct assignment instead of set_values
+                if self.roi_selection >= len(roi_options): self.roi_selection = 0
+                self.roi_var.set(roi_options[self.roi_selection])
+            except Exception as e:
+                self.viewer.log(f"Error updating ROI selector: {e}")
+            
+            # Update Line selector
+            try:
+                line_options = ["All Lines"] + [f"Line {i+1}" for i in range(len(self.viewer.mouse.draw_lines))]
+                self.line_combo['values'] = line_options  # Use direct assignment instead of set_values
+                if self.line_selection >= len(line_options): self.line_selection = 0
+                self.line_var.set(line_options[self.line_selection])
+            except Exception as e:
+                self.viewer.log(f"Error updating Line selector: {e}")
+
+            # Update Polygon selector
+            try:
+                poly_options = ["All Polygons"] + [f"Polygon {i+1}" for i in range(len(self.viewer.mouse.draw_polygons))]
+                self.polygon_combo['values'] = poly_options  # Use direct assignment instead of set_values
+                if self.polygon_selection >= len(poly_options): self.polygon_selection = 0
+                self.polygon_var.set(poly_options[self.polygon_selection])
+            except Exception as e:
+                self.viewer.log(f"Error updating Polygon selector: {e}")
+                
+        except Exception as e:
+            self.viewer.log(f"Error updating selectors: {e}")
+            pass
+    
+    def _on_roi_select(self, event):
+        selection = self.roi_var.get()
+        self.roi_selection = 0 if selection == "Full Image" else int(selection.split()[-1])
+        
+        prev_selection = self.viewer.mouse.selected_roi
+        self.viewer.mouse.selected_roi = self.roi_selection - 1 if self.roi_selection > 0 else None
+        
+        changes = self.viewer.mouse.validate_selections()
+        
+        if changes['roi_changed']:
+            if self.viewer.mouse.selected_roi is None:
+                if prev_selection is not None:
+                    self.viewer.log("ROI selection cleared")
+                elif self.roi_selection > 0:
+                    self.viewer.log(f"ROI {self.roi_selection} not available")
+            else:
+                self.viewer.log(f"Selected ROI {self.roi_selection}")
+        
+        self.viewer.update_display()
+
+    def _on_line_select(self, event):
+        selection = self.line_var.get()
+        self.line_selection = 0 if selection == "All Lines" else int(selection.split()[-1])
+        
+        prev_selection = self.viewer.mouse.selected_line
+        self.viewer.mouse.selected_line = self.line_selection - 1 if self.line_selection > 0 else None
+        
+        changes = self.viewer.mouse.validate_selections()
+        
+        if changes['line_changed']:
+            if self.viewer.mouse.selected_line is None:
+                if prev_selection is not None:
+                    self.viewer.log("Line selection cleared")
+                elif self.line_selection > 0:
+                    self.viewer.log(f"Line {self.line_selection} not available")
+            else:
+                self.viewer.log(f"Selected Line {self.line_selection}")
+        
+        self.viewer.update_display()
+
+    def _on_polygon_select(self, event):
+        selection = self.polygon_var.get()
+        self.polygon_selection = 0 if selection == "All Polygons" else int(selection.split()[-1])
+        
+        prev_selection = self.viewer.mouse.selected_polygon
+        self.viewer.mouse.selected_polygon = self.polygon_selection - 1 if self.polygon_selection > 0 else None
+        
+        changes = self.viewer.mouse.validate_selections()
+        
+        if changes['polygon_changed']:
+            if self.viewer.mouse.selected_polygon is None:
+                if prev_selection is not None:
+                    self.viewer.log("Polygon selection cleared")
+                elif self.polygon_selection > 0:
+                    self.viewer.log(f"Polygon {self.polygon_selection} not available")
+            else:
+                self.viewer.log(f"Selected Polygon {self.polygon_selection}")
+        
+        self.viewer.update_display()
+
+    def _show_histogram(self):
+        if not self.viewer._internal_images: return
+        current_idx = self.viewer.trackbar.parameters.get('show', 0)
+        image, title = self.viewer._internal_images[current_idx]
+        
+        if self.polygon_selection > 0:
+            poly_index = self.polygon_selection - 1
+            if poly_index < len(self.viewer.mouse.draw_polygons):
+                polygon = self.viewer.mouse.draw_polygons[poly_index]
+                self.viewer.analyzer.create_histogram_plot(image, polygon=polygon, title=f"{title} - Polygon {self.polygon_selection}")
+        elif self.roi_selection > 0:
+            roi_index = self.roi_selection - 1
+            if roi_index < len(self.viewer.mouse.draw_rects):
+                roi = self.viewer.mouse.draw_rects[roi_index]
+                self.viewer.analyzer.create_histogram_plot(image, roi=roi, title=f"{title} - ROI {self.roi_selection}")
+        else:
+            self.viewer.analyzer.create_histogram_plot(image, title=f"{title} - Full Image")
+
+    def _show_profiles(self):
+        if not self.viewer._internal_images or not self.viewer.mouse.draw_lines: return
+        current_idx = self.viewer.trackbar.parameters.get('show', 0)
+        image, title = self.viewer._internal_images[current_idx]
+        
+        if self.line_selection == 0:
+            for i, line in enumerate(self.viewer.mouse.draw_lines):
+                self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {i+1}")
+        else:
+            line_index = self.line_selection - 1
+            if line_index < len(self.viewer.mouse.draw_lines):
+                line = self.viewer.mouse.draw_lines[line_index]
+                self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {self.line_selection}")
+
+    def _toggle_line_mode(self):
+        self.viewer.mouse.is_line_mode = not self.viewer.mouse.is_line_mode
+        self.viewer.mouse.is_polygon_mode = False
+        self.viewer.log(f"Line mode: {'On' if self.viewer.mouse.is_line_mode else 'Off'}")
+        self._update_quick_access_buttons()
+
+    def _toggle_polygon_mode(self):
+        self.viewer.mouse.is_polygon_mode = not self.viewer.mouse.is_polygon_mode
+        self.viewer.mouse.is_line_mode = False
+        self.viewer.log(f"Polygon mode: {'On' if self.viewer.mouse.is_polygon_mode else 'Off'}")
+        self._update_quick_access_buttons()
+
+    def _undo_last_point(self):
+        if self.viewer.mouse.is_polygon_mode and self.viewer.mouse.current_polygon:
+            self.viewer.mouse.undo_last_point()
+            self.viewer.log("Last polygon point undone.")
+
+    def _clear_last_polygon(self):
+        if self.viewer.mouse.draw_polygons:
+            if self.viewer.mouse.selected_polygon == len(self.viewer.mouse.draw_polygons) - 1:
+                self.viewer.mouse.selected_polygon = None
+            
+            self.viewer.mouse.draw_polygons.pop()
+            self.update_selectors()
+            self.viewer.update_display()
+            self.viewer.log("Last polygon cleared")
+
+    def _clear_all(self):
+        self.viewer.mouse.draw_rects.clear()
+        self.viewer.mouse.draw_lines.clear()
+        self.viewer.mouse.draw_polygons.clear()
+        self.viewer.mouse.current_polygon.clear()
+        self.viewer.mouse.clear_selections()
+        self.update_selectors()
+        self.viewer.update_display()
+        self.viewer.log("Cleared all ROIs, lines, and polygons")
+
+    def _close_plots(self):
+        self.viewer.analyzer.close_all_plots()
+
+    def _export_polygons(self):
+        if not self.viewer.mouse.draw_polygons: 
+            messagebox.showinfo("Export Polygons", "No polygons available to export.")
+            return
+        
+        current_idx = self.viewer.trackbar.parameters.get('show', 0)
+        _, title = self.viewer._internal_images[current_idx] if self.viewer._internal_images else ("", "polygons")
+        
+        export_dialog = EnhancedExportDialog(self.root, self.theme_manager, title="Export Polygons")
+        
+        export_dialog.show(
+            filename_prefix=f"{title.replace(' ', '_')}_polygons",
+            on_export=lambda export_type, export_format, full_path: self._handle_polygon_export(
+                export_format, full_path
+            )
+        )
+        
+    def _handle_polygon_export(self, export_format, full_path):
+        try:
+            if self.polygon_selection > 0:
+                poly_index = self.polygon_selection - 1
+                if poly_index < len(self.viewer.mouse.draw_polygons):
+                    polygon = [self.viewer.mouse.draw_polygons[poly_index]]
+                    success = self.viewer.analyzer.export_analysis_data('polygon', polygon, export_format, full_path)
+                    if success:
+                        self.viewer.log(f"Exported Polygon {self.polygon_selection} to {full_path}")
+            else:
+                success = self.viewer.analyzer.export_analysis_data('polygon', self.viewer.mouse.draw_polygons, export_format, full_path)
+                if success:
+                    self.viewer.log(f"Exported all polygons ({len(self.viewer.mouse.draw_polygons)}) to {full_path}")
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Error during export: {str(e)}")
+            self.viewer.log(f"Export error: {str(e)}")
+        
+    def _export_analysis_data(self):
+        if not self.viewer._internal_images:
+            messagebox.showinfo("Export Analysis", "No image available for analysis.")
+            return
+            
+        current_idx = self.viewer.trackbar.parameters.get('show', 0)
+        image, title = self.viewer._internal_images[current_idx]
+        
+        export_dialog = EnhancedExportDialog(self.root, self.theme_manager)
+        
+        export_dialog.show(
+            filename_prefix=title.replace(' ', '_'),
+            on_export=lambda export_type, export_format, full_path: self._handle_export(
+                export_type, export_format, full_path, image
+            )
+        )
+        
+    def _handle_export(self, export_type, export_format, full_path, image):
+        try:
+            if export_type == "histogram":
+                if self.polygon_selection > 0:
+                    poly_index = self.polygon_selection - 1
+                    if poly_index < len(self.viewer.mouse.draw_polygons):
+                        polygon = self.viewer.mouse.draw_polygons[poly_index]
+                        histogram_data = self.viewer.analyzer.calculate_histogram(image, polygon=polygon)
+                        success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
+                        if success:
+                            self.viewer.log(f"Exported histogram data for Polygon {self.polygon_selection} to {full_path}")
+                elif self.roi_selection > 0:
+                    roi_index = self.roi_selection - 1
+                    if roi_index < len(self.viewer.mouse.draw_rects):
+                        roi = self.viewer.mouse.draw_rects[roi_index]
+                        histogram_data = self.viewer.analyzer.calculate_histogram(image, roi=roi)
+                        success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
+                        if success:
+                            self.viewer.log(f"Exported histogram data for ROI {self.roi_selection} to {full_path}")
+                else:
+                    histogram_data = self.viewer.analyzer.calculate_histogram(image)
+                    success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
+                    if success:
+                        self.viewer.log(f"Exported histogram data for full image to {full_path}")
+            
+            elif export_type == "profile":
+                if not self.viewer.mouse.draw_lines:
+                    messagebox.showinfo("Export Analysis", "No line profiles available to export.")
+                    return
+                    
+                if self.line_selection == 0:
+                    base_path = os.path.splitext(full_path)[0]
+                    exported_count = 0
+                    
+                    for i, line in enumerate(self.viewer.mouse.draw_lines):
+                        line_path = f"{base_path}_line{i+1}.{export_format}"
+                        profile_data = self.viewer.analyzer.calculate_pixel_profile(image, line)
+                        success = self.viewer.analyzer.export_analysis_data('profile', profile_data, export_format, line_path)
+                        if success:
+                            exported_count += 1
+                            
+                    if exported_count > 0:
+                        messagebox.showinfo("Export Complete", f"Exported {exported_count} line profiles.")
+                        self.viewer.log(f"Exported {exported_count} line profiles to {os.path.dirname(full_path)}")
+                else:
+                    line_index = self.line_selection - 1
+                    if line_index < len(self.viewer.mouse.draw_lines):
+                        line = self.viewer.mouse.draw_lines[line_index]
+                        profile_data = self.viewer.analyzer.calculate_pixel_profile(image, line)
+                        success = self.viewer.analyzer.export_analysis_data('profile', profile_data, export_format, full_path)
+                        if success:
+                            self.viewer.log(f"Exported profile data for Line {self.line_selection} to {full_path}")
+                            
+            elif export_type == "polygon":
+                if not self.viewer.mouse.draw_polygons:
+                    messagebox.showinfo("Export Analysis", "No polygons available to export.")
+                    return
+                
+                if self.polygon_selection > 0:
+                    poly_index = self.polygon_selection - 1
+                    if poly_index < len(self.viewer.mouse.draw_polygons):
+                        polygon = [self.viewer.mouse.draw_polygons[poly_index]]
+                        success = self.viewer.analyzer.export_analysis_data('polygon', polygon, export_format, full_path)
+                        if success:
+                            self.viewer.log(f"Exported Polygon {self.polygon_selection} to {full_path}")
+                else:
+                    success = self.viewer.analyzer.export_analysis_data('polygon', self.viewer.mouse.draw_polygons, export_format, full_path)
+                    if success:
+                        self.viewer.log(f"Exported all polygons to {full_path}")
+                        
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Error during export: {str(e)}")
+            self.viewer.log(f"Export error: {str(e)}")
+
+    def _open_thresholding_window(self):
+        self.thresholding_manager.open_colorspace_selection_window()
+        
+    def _open_plot_customization(self):
+        """Open the plot customization dialog."""
+        try:
+            plot_dialog = PlotCustomizationDialog(self.root, self.theme_manager, plot_type="histogram")
+            plot_dialog.show(on_apply=self._on_plot_settings_apply)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open plot customization: {str(e)}")
+            self.viewer.log(f"Plot customization error: {str(e)}")
+
+    def _on_plot_settings_apply(self, settings):
+        self.viewer.log("Plot settings have been updated.")
+
+    def _on_closing(self):
+        self.thresholding_manager.cleanup_windows()
+        self.destroy_window()
+    
+    def destroy_window(self):
+        if self.window_created and self.root:
+            try: self.root.destroy()
+            except: pass
+            self.window_created = False
+            self.root = None
+
+    def _create_quick_access_section(self, parent_frame):
+        quick_frame = self._create_section_frame(parent_frame, "Quick Access")
+        
+        button_frame = ttk.Frame(quick_frame, style=self.theme_manager.get_frame_style())
+        button_frame.pack(fill='x', pady=2)
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
+        
+        line_btn = ttk.Button(
+            button_frame, 
+            text="Line Mode", 
+            command=self._toggle_line_mode,
+            style=self.theme_manager.get_button_style("secondary")
+        )
+        line_btn.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
+        Tooltip(line_btn, "Toggle line drawing mode")
+        self.quick_access_buttons['line_mode'] = line_btn
+        
+        polygon_btn = ttk.Button(
+            button_frame, 
+            text="Polygon Mode", 
+            command=self._toggle_polygon_mode,
+            style=self.theme_manager.get_button_style("secondary")
+        )
+        polygon_btn.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
+        Tooltip(polygon_btn, "Toggle polygon drawing mode")
+        self.quick_access_buttons['polygon_mode'] = polygon_btn
+        
+        histogram_btn = ttk.Button(
+            button_frame, 
+            text="Histogram", 
+            command=self._show_histogram,
+            style=self.theme_manager.get_button_style("primary")
+        )
+        histogram_btn.grid(row=1, column=0, padx=2, pady=2, sticky="ew")
+        Tooltip(histogram_btn, "Show histogram for selected ROI or polygon")
+        
+        profile_btn = ttk.Button(
+            button_frame, 
+            text="Profile", 
+            command=self._show_profiles,
+            style=self.theme_manager.get_button_style("primary")
+        )
+        profile_btn.grid(row=1, column=1, padx=2, pady=2, sticky="ew")
+        Tooltip(profile_btn, "Show pixel profiles for selected lines")
+
+    def _update_quick_access_buttons(self):
+        """Update the state of quick access buttons based on active modes."""
+        if not self.window_created or not self.quick_access_buttons:
+            return
+            
+        try:
+            # Update line mode button
+            if self.quick_access_buttons.get('line_mode'):
+                style = "Primary.TButton" if self.viewer.mouse.is_line_mode else self.theme_manager.get_button_style("secondary")
+                self.quick_access_buttons['line_mode'].config(style=style)
+                
+            # Update polygon mode button
+            if self.quick_access_buttons.get('polygon_mode'):
+                style = "Primary.TButton" if self.viewer.mouse.is_polygon_mode else self.theme_manager.get_button_style("secondary")
+                self.quick_access_buttons['polygon_mode'].config(style=style)
+        except Exception as e:
+            self.viewer.log(f"Error updating quick access buttons: {e}")
