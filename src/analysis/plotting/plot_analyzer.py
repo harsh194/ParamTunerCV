@@ -299,6 +299,86 @@ class PlotAnalyzer:
         
         return points
     
+    def calculate_histogram(self, image: np.ndarray, roi: Optional[Tuple[int, int, int, int]] = None, polygon: Optional[List[Tuple[int, int]]] = None) -> Dict[str, np.ndarray]:
+        """Calculate histogram data for the image, ROI, or polygon."""
+        if image is None or image.size == 0:
+            return {}
+        
+        mask = None
+        if polygon:
+            mask = np.zeros(image.shape[:2], dtype=np.uint8)
+            poly_points = np.array(polygon, dtype=np.int32)
+            cv2.fillPoly(mask, [poly_points], 255)
+        
+        roi_image = image
+        if roi:
+            x, y, w, h = roi
+            x = max(0, min(x, image.shape[1] - 1))
+            y = max(0, min(y, image.shape[0] - 1))
+            w = min(w, image.shape[1] - x)
+            h = min(h, image.shape[0] - y)
+            
+            if w <= 0 or h <= 0:
+                return {}
+            
+            roi_image = image[y:y+h, x:x+w]
+            if mask is not None:
+                mask = mask[y:y+h, x:x+w]
+
+        if roi_image.size == 0:
+            return {}
+        
+        result = {
+            'bins': np.arange(256),
+            'roi': roi,
+            'polygon': polygon
+        }
+        
+        if len(roi_image.shape) == 3:  # Color image
+            for i, channel in enumerate(['blue', 'green', 'red']):
+                hist = cv2.calcHist([roi_image], [i], mask, [256], [0, 256])
+                result[channel] = hist.flatten()
+        else:  # Grayscale image
+            hist = cv2.calcHist([roi_image], [0], mask, [256], [0, 256])
+            result['gray'] = hist.flatten()
+        
+        return result
+    
+    def calculate_pixel_profile(self, image: np.ndarray, line_coords: Tuple[int, int, int, int]) -> Dict[str, np.ndarray]:
+        """Calculate pixel intensity profile along a line."""
+        if image is None or image.size == 0:
+            return {}
+        
+        x1, y1, x2, y2 = line_coords
+        points = self._get_line_points(x1, y1, x2, y2)
+        
+        valid_points = [(x, y) for x, y in points if 0 <= y < image.shape[0] and 0 <= x < image.shape[1]]
+        
+        if len(valid_points) < 2:
+            return {}
+        
+        distances = np.array([np.sqrt((p[0] - x1)**2 + (p[1] - y1)**2) for p in valid_points])
+        
+        result = {
+            'distances': distances,
+            'line_coords': line_coords,
+            'points': valid_points
+        }
+        
+        if len(image.shape) == 3:  # Color image
+            blue_values = np.array([image[p[1], p[0], 0] for p in valid_points])
+            green_values = np.array([image[p[1], p[0], 1] for p in valid_points])
+            red_values = np.array([image[p[1], p[0], 2] for p in valid_points])
+            
+            result['blue'] = blue_values
+            result['green'] = green_values
+            result['red'] = red_values
+        else:  # Grayscale image
+            gray_values = np.array([image[p[1], p[0]] for p in valid_points])
+            result['gray'] = gray_values
+        
+        return result
+    
     def close_all_plots(self):
         """Close all open plot windows."""
         for fig in self.plot_windows.values():

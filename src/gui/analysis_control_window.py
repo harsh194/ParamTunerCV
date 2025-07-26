@@ -77,79 +77,118 @@ class AnalysisControlWindow:
 
             self.root = tk.Toplevel()
             self.root.title("Analysis Controls")
-            self.root.geometry("400x600")
-            self.root.minsize(350, 500)
+            self.root.geometry("420x650")
+            self.root.minsize(380, 550)
 
             self.theme_manager.configure_theme(self.root)
             
-            # Create a container frame
+            # Create a container frame with padding
             container = ttk.Frame(self.root)
-            container.pack(fill=tk.BOTH, expand=True)
+            container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
             
-            # Create canvas with scrollbar
-            canvas = tk.Canvas(container)
-            scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+            # Create canvas with scrollbar - store as instance attributes
+            self.canvas = tk.Canvas(container, highlightthickness=0)
+            self.scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
             
-            # Create a main frame inside the canvas
-            main_frame = ttk.Frame(canvas, style=self.theme_manager.get_frame_style())
+            # Create a main frame inside the canvas - store as instance attribute
+            self.main_frame = ttk.Frame(self.canvas, style=self.theme_manager.get_frame_style())
             
             # Configure the canvas
-            canvas.configure(yscrollcommand=scrollbar.set)
-            canvas.create_window((0, 0), window=main_frame, anchor="nw")
+            self.canvas.configure(yscrollcommand=self.scrollbar.set)
+            self.canvas_frame = self.canvas.create_window((0, 0), window=self.main_frame, anchor="nw")
             
             # Pack the canvas and scrollbar
-            canvas.pack(side="left", fill="both", expand=True)
-            scrollbar.pack(side="right", fill="y")
+            self.canvas.pack(side="left", fill="both", expand=True)
+            self.scrollbar.pack(side="right", fill="y")
             
-            # Update the scrollregion when the main_frame changes size
-            main_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+            # Bind events for proper scrolling behavior
+            self.main_frame.bind("<Configure>", self._on_frame_configure)
+            self.canvas.bind("<Configure>", self._on_canvas_configure)
             
-            # Add padding to the main frame
-            main_frame.pack_configure(padx=5, pady=5)
+            # Add mouse wheel scrolling support
+            self._bind_mousewheel()
+            
+            # Add some initial padding to ensure content doesn't get cut off
+            padding_frame = ttk.Frame(self.main_frame, style=self.theme_manager.get_frame_style())
+            padding_frame.pack(fill='x', pady=(10, 20))
 
-            self._create_quick_access_section(main_frame)
-            self._create_selection_section(main_frame)
-            self._create_analysis_section(main_frame)
-            self._create_drawing_section(main_frame)
-            self._create_export_section(main_frame)
+            self._create_quick_access_section(self.main_frame)
+            self._create_selection_section(self.main_frame)
+            self._create_analysis_section(self.main_frame)
+            self._create_drawing_section(self.main_frame)
+            self._create_export_section(self.main_frame)
+            
+            # Add bottom padding to prevent text cutoff
+            bottom_padding = ttk.Frame(self.main_frame, style=self.theme_manager.get_frame_style())
+            bottom_padding.pack(fill='x', pady=(10, 30))
 
             self.update_selectors()
             self._update_quick_access_buttons()
             self.window_created = True
             self.viewer.log("Analysis control window created")
             self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+            
+            # Make window focus and bring to front
+            self.root.lift()
+            self.root.focus_force()
 
         except Exception as e:
             self.viewer.log(f"Failed to create analysis control window: {e}")
             self.window_created = False
 
+    def _on_frame_configure(self, event):
+        """Update scroll region when the main frame size changes."""
+        try:
+            # Update the scroll region to encompass all content
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        except Exception as e:
+            if self.viewer:
+                self.viewer.log(f"Error updating scroll region: {e}")
+    
     def _on_canvas_configure(self, event):
         """Update the scrollable frame width when the canvas is resized."""
         try:
             # Update the width of the scrollable frame to match the canvas width
             canvas_width = event.width
             self.canvas.itemconfig(self.canvas_frame, width=canvas_width)
-            
-            # Also update the scrollregion to ensure all content is accessible
-            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         except Exception as e:
-            # Safely handle any exceptions that might occur during canvas configuration
             if self.viewer:
                 self.viewer.log(f"Error configuring canvas: {e}")
-            pass
+    
+    def _bind_mousewheel(self):
+        """Bind mouse wheel scrolling to the canvas."""
+        def _on_mousewheel(event):
+            try:
+                self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            except:
+                pass
+        
+        def _bind_to_mousewheel(event):
+            self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _unbind_from_mousewheel(event):
+            self.canvas.unbind_all("<MouseWheel>")
+        
+        # Bind mouse wheel events when entering/leaving the window
+        self.root.bind('<Enter>', _bind_to_mousewheel)
+        self.root.bind('<Leave>', _unbind_from_mousewheel)
+        
+        # Also bind to canvas for better UX
+        self.canvas.bind('<Enter>', _bind_to_mousewheel)
+        self.canvas.bind('<Leave>', _unbind_from_mousewheel)
 
     def _create_section_frame(self, parent, title):
         section_frame = ttk.Frame(parent, style=self.theme_manager.get_frame_style())
-        section_frame.pack(fill='x', pady=5)
+        section_frame.pack(fill='x', pady=(5, 10))
         
         inner_frame = ttk.Frame(section_frame, style=self.theme_manager.get_frame_style())
-        inner_frame.pack(fill='x', padx=10, pady=10)
+        inner_frame.pack(fill='x', padx=15, pady=12)
         
         header = ttk.Label(inner_frame, text=title, style="Header.TLabel")
-        header.pack(fill='x', pady=(0, 5))
+        header.pack(fill='x', pady=(0, 8))
         
         separator = ttk.Separator(inner_frame, orient='horizontal')
-        separator.pack(fill='x', pady=(0, 10))
+        separator.pack(fill='x', pady=(0, 12))
         
         return inner_frame
 
@@ -214,61 +253,79 @@ class AnalysisControlWindow:
         analysis_frame = self._create_section_frame(parent_frame, "Analysis")
         
         btn_style = self.theme_manager.get_button_style("primary")
-        hist_btn = ttk.Button(analysis_frame, text="Show Histogram", command=self._show_histogram, style=btn_style)
-        hist_btn.pack(fill='x', pady=3)
-        Tooltip(hist_btn, "Display histogram of the selected ROI or polygon")
-
-        prof_btn = ttk.Button(analysis_frame, text="Show Profiles", command=self._show_profiles, style=btn_style)
-        prof_btn.pack(fill='x', pady=3)
-        Tooltip(prof_btn, "Display pixel profiles of the selected lines")
-
-        thresh_btn = ttk.Button(analysis_frame, text="Thresholding", command=self._open_thresholding_window, style=btn_style)
-        thresh_btn.pack(fill='x', pady=3)
-        Tooltip(thresh_btn, "Open the thresholding window")
         
-        customize_btn = ttk.Button(analysis_frame, text="Customize Plots", command=self._open_plot_customization, style=btn_style)
+        # Create a grid layout for better organization
+        analysis_grid = ttk.Frame(analysis_frame, style=self.theme_manager.get_frame_style())
+        analysis_grid.pack(fill='x', pady=5)
+        analysis_grid.columnconfigure(0, weight=1)
+        analysis_grid.columnconfigure(1, weight=1)
+        
+        hist_btn = ttk.Button(analysis_grid, text="📊 Show Histogram", command=self._show_histogram, style=btn_style)
+        hist_btn.grid(row=0, column=0, padx=3, pady=3, sticky="ew")
+        Tooltip(hist_btn, "Display histogram of the selected ROI or polygon (H key)")
+
+        prof_btn = ttk.Button(analysis_grid, text="📈 Show Profiles", command=self._show_profiles, style=btn_style)
+        prof_btn.grid(row=0, column=1, padx=3, pady=3, sticky="ew")
+        Tooltip(prof_btn, "Display pixel profiles of the selected lines (Shift+P)")
+
+        thresh_btn = ttk.Button(analysis_frame, text="🌡️ Thresholding", command=self._open_thresholding_window, style=btn_style)
+        thresh_btn.pack(fill='x', pady=3)
+        Tooltip(thresh_btn, "Open the thresholding window for image segmentation")
+        
+        customize_btn = ttk.Button(analysis_frame, text="🎨 Customize Plots", command=self._open_plot_customization, style=btn_style)
         customize_btn.pack(fill='x', pady=3)
-        Tooltip(customize_btn, "Customize plot appearance and save presets")
+        Tooltip(customize_btn, "Customize plot appearance, colors, and save presets")
 
     def _create_drawing_section(self, parent_frame):
-        drawing_frame = self._create_section_frame(parent_frame, "Drawing Tools")
+        drawing_frame = self._create_section_frame(parent_frame, "Drawing Management")
 
         btn_style = self.theme_manager.get_button_style("secondary")
-        line_mode_btn = ttk.Button(drawing_frame, text="Toggle Line Mode", command=self._toggle_line_mode, style=btn_style)
-        line_mode_btn.pack(fill='x', pady=2)
-        Tooltip(line_mode_btn, "Toggle drawing lines")
-
-        poly_mode_btn = ttk.Button(drawing_frame, text="Toggle Polygon Mode", command=self._toggle_polygon_mode, style=btn_style)
-        poly_mode_btn.pack(fill='x', pady=2)
-        Tooltip(poly_mode_btn, "Toggle drawing polygons")
-
-        undo_btn = ttk.Button(drawing_frame, text="Undo Last Point", command=self._undo_last_point, style=btn_style)
+        warning_style = self.theme_manager.get_button_style()  # Use default for destructive actions
+        
+        # Edit tools
+        edit_label = ttk.Label(drawing_frame, text="Edit Tools:", font=('TkDefaultFont', 9, 'bold'))
+        edit_label.pack(anchor='w', pady=(0, 5))
+        
+        undo_btn = ttk.Button(drawing_frame, text="↶ Undo Last Point", command=self._undo_last_point, style=btn_style)
         undo_btn.pack(fill='x', pady=2)
-        Tooltip(undo_btn, "Undo the last point of the current polygon")
+        Tooltip(undo_btn, "Undo the last point of the current polygon (Ctrl+Z)")
+        
+        # Clear tools with warning styling
+        clear_label = ttk.Label(drawing_frame, text="Clear Tools:", font=('TkDefaultFont', 9, 'bold'))
+        clear_label.pack(anchor='w', pady=(10, 5))
 
-        clear_last_btn = ttk.Button(drawing_frame, text="Clear Last Polygon", command=self._clear_last_polygon, style=btn_style)
+        clear_last_btn = ttk.Button(drawing_frame, text="🗑️ Clear Last Polygon", command=self._clear_last_polygon, style=warning_style)
         clear_last_btn.pack(fill='x', pady=2)
-        Tooltip(clear_last_btn, "Clear the last drawn polygon")
+        Tooltip(clear_last_btn, "Clear the last drawn polygon (Delete key)")
 
-        clear_all_btn = ttk.Button(drawing_frame, text="Clear All", command=self._clear_all, style=btn_style)
+        clear_all_btn = ttk.Button(drawing_frame, text="🗑️ Clear All Objects", command=self._clear_all, style=warning_style)
         clear_all_btn.pack(fill='x', pady=2)
-        Tooltip(clear_all_btn, "Clear all ROIs, lines, and polygons")
+        Tooltip(clear_all_btn, "Clear all ROIs, lines, and polygons (Ctrl+Delete)")
 
     def _create_export_section(self, parent_frame):
-        export_frame = self._create_section_frame(parent_frame, "Export")
+        export_frame = self._create_section_frame(parent_frame, "Export & Plots")
         
         btn_style = self.theme_manager.get_button_style()
-        export_data_btn = ttk.Button(export_frame, text="Export Analysis Data", command=self._export_analysis_data, style=btn_style)
+        
+        # Export tools
+        export_label = ttk.Label(export_frame, text="Export Data:", font=('TkDefaultFont', 9, 'bold'))
+        export_label.pack(anchor='w', pady=(0, 5))
+        
+        export_data_btn = ttk.Button(export_frame, text="📊 Export Analysis Data", command=self._export_analysis_data, style=btn_style)
         export_data_btn.pack(fill='x', pady=3)
-        Tooltip(export_data_btn, "Export histogram or profile data")
+        Tooltip(export_data_btn, "Export histogram or profile data to CSV/JSON (Ctrl+E)")
 
-        export_poly_btn = ttk.Button(export_frame, text="Export Polygons", command=self._export_polygons, style=btn_style)
+        export_poly_btn = ttk.Button(export_frame, text="📐 Export Polygons", command=self._export_polygons, style=btn_style)
         export_poly_btn.pack(fill='x', pady=3)
-        Tooltip(export_poly_btn, "Export polygons to a file")
+        Tooltip(export_poly_btn, "Export polygons coordinates to file (Ctrl+Shift+E)")
+        
+        # Plot management
+        plots_label = ttk.Label(export_frame, text="Plot Management:", font=('TkDefaultFont', 9, 'bold'))
+        plots_label.pack(anchor='w', pady=(10, 5))
 
-        close_plots_btn = ttk.Button(export_frame, text="Close Plots", command=self._close_plots, style=btn_style)
+        close_plots_btn = ttk.Button(export_frame, text="❌ Close All Plots", command=self._close_plots, style=btn_style)
         close_plots_btn.pack(fill='x', pady=3)
-        Tooltip(close_plots_btn, "Close all open plots")
+        Tooltip(close_plots_btn, "Close all open matplotlib windows (Ctrl+W)")
     
     def update_selectors(self):
         if not self.window_created: return
@@ -582,56 +639,109 @@ class AnalysisControlWindow:
     
     def destroy_window(self):
         if self.window_created and self.root:
-            try: self.root.destroy()
-            except: pass
+            try: 
+                # Clean up mouse wheel bindings
+                if hasattr(self, 'canvas'):
+                    self.canvas.unbind_all("<MouseWheel>")
+                self.root.destroy()
+            except: 
+                pass
             self.window_created = False
             self.root = None
+            self.canvas = None
+            self.main_frame = None
+            self.scrollbar = None
+            self.canvas_frame = None
+    
+    def _setup_keyboard_shortcuts(self):
+        """Setup keyboard shortcuts for quick access."""
+        def on_key_press(event):
+            try:
+                key = event.keysym.lower()
+                if key == 'l':
+                    self._toggle_line_mode()
+                elif key == 'p' and not (event.state & 0x1):  # P without shift
+                    self._toggle_polygon_mode()
+                elif key == 'h':
+                    self._show_histogram()
+                elif key == 'p' and (event.state & 0x1):  # Shift+P
+                    self._show_profiles()
+                elif key == 'escape':
+                    # Clear current drawing mode
+                    if self.viewer.mouse.is_line_mode or self.viewer.mouse.is_polygon_mode:
+                        self.viewer.mouse.is_line_mode = False
+                        self.viewer.mouse.is_polygon_mode = False
+                        self._update_quick_access_buttons()
+                        self.viewer.log("Drawing mode cleared")
+            except Exception as e:
+                if self.viewer:
+                    self.viewer.log(f"Keyboard shortcut error: {e}")
+        
+        # Bind to the root window
+        self.root.bind('<KeyPress>', on_key_press)
+        self.root.focus_set()  # Make sure the window can receive key events
 
     def _create_quick_access_section(self, parent_frame):
         quick_frame = self._create_section_frame(parent_frame, "Quick Access")
         
-        button_frame = ttk.Frame(quick_frame, style=self.theme_manager.get_frame_style())
-        button_frame.pack(fill='x', pady=2)
-        button_frame.columnconfigure(0, weight=1)
-        button_frame.columnconfigure(1, weight=1)
+        # Drawing tools subsection
+        draw_label = ttk.Label(quick_frame, text="Drawing Tools:", font=('TkDefaultFont', 9, 'bold'))
+        draw_label.pack(anchor='w', pady=(0, 5))
+        
+        drawing_frame = ttk.Frame(quick_frame, style=self.theme_manager.get_frame_style())
+        drawing_frame.pack(fill='x', pady=(0, 10))
+        drawing_frame.columnconfigure(0, weight=1)
+        drawing_frame.columnconfigure(1, weight=1)
         
         line_btn = ttk.Button(
-            button_frame, 
-            text="Line Mode", 
+            drawing_frame, 
+            text="📏 Line Mode", 
             command=self._toggle_line_mode,
             style=self.theme_manager.get_button_style("secondary")
         )
-        line_btn.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
-        Tooltip(line_btn, "Toggle line drawing mode")
+        line_btn.grid(row=0, column=0, padx=3, pady=2, sticky="ew")
+        Tooltip(line_btn, "Toggle line drawing mode (L key)")
         self.quick_access_buttons['line_mode'] = line_btn
         
         polygon_btn = ttk.Button(
-            button_frame, 
-            text="Polygon Mode", 
+            drawing_frame, 
+            text="🔺 Polygon Mode", 
             command=self._toggle_polygon_mode,
             style=self.theme_manager.get_button_style("secondary")
         )
-        polygon_btn.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
-        Tooltip(polygon_btn, "Toggle polygon drawing mode")
+        polygon_btn.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
+        Tooltip(polygon_btn, "Toggle polygon drawing mode (P key)")
         self.quick_access_buttons['polygon_mode'] = polygon_btn
         
+        # Analysis tools subsection
+        analysis_label = ttk.Label(quick_frame, text="Analysis Tools:", font=('TkDefaultFont', 9, 'bold'))
+        analysis_label.pack(anchor='w', pady=(5, 5))
+        
+        analysis_frame = ttk.Frame(quick_frame, style=self.theme_manager.get_frame_style())
+        analysis_frame.pack(fill='x', pady=2)
+        analysis_frame.columnconfigure(0, weight=1)
+        analysis_frame.columnconfigure(1, weight=1)
+        
         histogram_btn = ttk.Button(
-            button_frame, 
-            text="Histogram", 
+            analysis_frame, 
+            text="📊 Histogram", 
             command=self._show_histogram,
             style=self.theme_manager.get_button_style("primary")
         )
-        histogram_btn.grid(row=1, column=0, padx=2, pady=2, sticky="ew")
-        Tooltip(histogram_btn, "Show histogram for selected ROI or polygon")
+        histogram_btn.grid(row=0, column=0, padx=3, pady=2, sticky="ew")
+        Tooltip(histogram_btn, "Show histogram for selected ROI or polygon (H key)")
         
         profile_btn = ttk.Button(
-            button_frame, 
-            text="Profile", 
+            analysis_frame, 
+            text="📈 Profile", 
             command=self._show_profiles,
             style=self.theme_manager.get_button_style("primary")
         )
-        profile_btn.grid(row=1, column=1, padx=2, pady=2, sticky="ew")
-        Tooltip(profile_btn, "Show pixel profiles for selected lines")
+        profile_btn.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
+        Tooltip(profile_btn, "Show pixel profiles for selected lines (Shift+P)")
+        
+        # Add keyboard bindings
+        self._setup_keyboard_shortcuts()
 
     def _update_quick_access_buttons(self):
         """Update the state of quick access buttons based on active modes."""

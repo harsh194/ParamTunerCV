@@ -18,6 +18,12 @@ class ImageAnalyzer:
     def export_analysis_data(self, *args, **kwargs):
         return self._export_manager.export_analysis_data(*args, **kwargs)
     
+    def calculate_histogram(self, *args, **kwargs):
+        return self._plot_analyzer.calculate_histogram(*args, **kwargs)
+    
+    def calculate_pixel_profile(self, *args, **kwargs):
+        return self._plot_analyzer.calculate_pixel_profile(*args, **kwargs)
+    
     def close_all_plots(self):
         return self._plot_analyzer.close_all_plots()
 
