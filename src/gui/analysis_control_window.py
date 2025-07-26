@@ -779,33 +779,6 @@ class AnalysisControlWindow:
         Tooltip(polygon_btn, "Toggle polygon drawing mode (P key)")
         self.quick_access_buttons['polygon_mode'] = polygon_btn
         
-        # Analysis tools subsection
-        analysis_label = ttk.Label(quick_frame, text="Analysis Tools:", font=('TkDefaultFont', 9, 'bold'))
-        analysis_label.pack(anchor='w', pady=(5, 5))
-        
-        analysis_frame = ttk.Frame(quick_frame, style=self.theme_manager.get_frame_style())
-        analysis_frame.pack(fill='x', pady=2)
-        analysis_frame.columnconfigure(0, weight=1)
-        analysis_frame.columnconfigure(1, weight=1)
-        
-        histogram_btn = ttk.Button(
-            analysis_frame, 
-            text="📊 Histogram", 
-            command=self._show_histogram,
-            style=self.theme_manager.get_button_style("primary")
-        )
-        histogram_btn.grid(row=0, column=0, padx=3, pady=2, sticky="ew")
-        Tooltip(histogram_btn, "Show histogram for selected ROI or polygon (H key)")
-        
-        profile_btn = ttk.Button(
-            analysis_frame, 
-            text="📈 Profile", 
-            command=self._show_profiles,
-            style=self.theme_manager.get_button_style("primary")
-        )
-        profile_btn.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
-        Tooltip(profile_btn, "Show pixel profiles for selected lines (Shift+P)")
-        
         # Add keyboard bindings
         self._setup_keyboard_shortcuts()
 
