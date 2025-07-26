@@ -64,6 +64,14 @@ class AnalysisControlWindow:
             'thresholding': False
         }
         self.quick_access_buttons = {}
+        self.action_buttons = {}  # Store references to action buttons for feedback
+        
+        # Track active states for persistent green highlighting
+        self.active_states = {
+            'analysis': None,  # Currently active analysis button
+            'drawing_management': None,  # Currently active drawing management button
+            'export_plots': None  # Currently active export/plots button
+        }
         
     def create_window(self):
         """Create the analysis control window with enhanced UI."""
@@ -274,18 +282,22 @@ class AnalysisControlWindow:
         hist_btn = ttk.Button(analysis_grid, text="📊 Show Histogram", command=self._show_histogram, style=btn_style)
         hist_btn.grid(row=0, column=0, padx=3, pady=3, sticky="ew")
         Tooltip(hist_btn, "Display histogram of the selected ROI or polygon (H key)")
+        self.action_buttons['histogram'] = hist_btn
 
         prof_btn = ttk.Button(analysis_grid, text="📈 Show Profiles", command=self._show_profiles, style=btn_style)
         prof_btn.grid(row=0, column=1, padx=3, pady=3, sticky="ew")
         Tooltip(prof_btn, "Display pixel profiles of the selected lines (Shift+P)")
+        self.action_buttons['profiles'] = prof_btn
 
         thresh_btn = ttk.Button(analysis_frame, text="🌡️ Thresholding", command=self._open_thresholding_window, style=btn_style)
         thresh_btn.pack(fill='x', pady=3)
         Tooltip(thresh_btn, "Open the thresholding window for image segmentation")
+        self.action_buttons['thresholding'] = thresh_btn
         
         customize_btn = ttk.Button(analysis_frame, text="🎨 Customize Plots", command=self._open_plot_customization, style=btn_style)
         customize_btn.pack(fill='x', pady=3)
         Tooltip(customize_btn, "Customize plot appearance, colors, and save presets")
+        self.action_buttons['customize_plots'] = customize_btn
 
     def _create_drawing_section(self, parent_frame):
         drawing_frame = self._create_section_frame(parent_frame, "Drawing Management")
@@ -300,6 +312,7 @@ class AnalysisControlWindow:
         undo_btn = ttk.Button(drawing_frame, text="↶ Undo Last Point", command=self._undo_last_point, style=btn_style)
         undo_btn.pack(fill='x', pady=2)
         Tooltip(undo_btn, "Undo the last point of the current polygon (Ctrl+Z)")
+        self.action_buttons['undo'] = undo_btn
         
         # Clear tools with warning styling
         clear_label = ttk.Label(drawing_frame, text="Clear Tools:", font=('TkDefaultFont', 9, 'bold'))
@@ -314,18 +327,22 @@ class AnalysisControlWindow:
         clear_rect_btn = ttk.Button(clear_grid, text="🗑️ Clear Last Rectangle", command=self._clear_last_rectangle, style=warning_style)
         clear_rect_btn.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
         Tooltip(clear_rect_btn, "Clear the last drawn rectangle/ROI")
+        self.action_buttons['clear_rect'] = clear_rect_btn
 
         clear_line_btn = ttk.Button(clear_grid, text="🗑️ Clear Last Line", command=self._clear_last_line, style=warning_style)
         clear_line_btn.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
         Tooltip(clear_line_btn, "Clear the last drawn line")
+        self.action_buttons['clear_line'] = clear_line_btn
 
         clear_last_btn = ttk.Button(drawing_frame, text="🗑️ Clear Last Polygon", command=self._clear_last_polygon, style=warning_style)
         clear_last_btn.pack(fill='x', pady=2)
         Tooltip(clear_last_btn, "Clear the last drawn polygon (Delete key)")
+        self.action_buttons['clear_polygon'] = clear_last_btn
 
         clear_all_btn = ttk.Button(drawing_frame, text="🗑️ Clear All Objects", command=self._clear_all, style=warning_style)
         clear_all_btn.pack(fill='x', pady=2)
         Tooltip(clear_all_btn, "Clear all ROIs, lines, and polygons (Ctrl+Delete)")
+        self.action_buttons['clear_all'] = clear_all_btn
 
     def _create_export_section(self, parent_frame):
         export_frame = self._create_section_frame(parent_frame, "Export & Plots")
@@ -339,10 +356,12 @@ class AnalysisControlWindow:
         export_data_btn = ttk.Button(export_frame, text="📊 Export Analysis Data", command=self._export_analysis_data, style=btn_style)
         export_data_btn.pack(fill='x', pady=3)
         Tooltip(export_data_btn, "Export histogram or profile data to CSV/JSON (Ctrl+E)")
+        self.action_buttons['export_data'] = export_data_btn
 
         export_poly_btn = ttk.Button(export_frame, text="📐 Export Polygons", command=self._export_polygons, style=btn_style)
         export_poly_btn.pack(fill='x', pady=3)
         Tooltip(export_poly_btn, "Export polygons coordinates to file (Ctrl+Shift+E)")
+        self.action_buttons['export_polygons'] = export_poly_btn
         
         # Plot management
         plots_label = ttk.Label(export_frame, text="Plot Management:", font=('TkDefaultFont', 9, 'bold'))
@@ -351,6 +370,7 @@ class AnalysisControlWindow:
         close_plots_btn = ttk.Button(export_frame, text="❌ Close All Plots", command=self._close_plots, style=btn_style)
         close_plots_btn.pack(fill='x', pady=3)
         Tooltip(close_plots_btn, "Close all open matplotlib windows (Ctrl+W)")
+        self.action_buttons['close_plots'] = close_plots_btn
     
     def update_selectors(self):
         if not self.window_created: return
@@ -447,6 +467,9 @@ class AnalysisControlWindow:
         self.viewer.update_display()
 
     def _show_histogram(self):
+        # Set as active button in analysis section
+        self._set_active_button('analysis', 'histogram')
+        
         if not self.viewer._internal_images: return
         current_idx = self.viewer.trackbar.parameters.get('show', 0)
         image, title = self.viewer._internal_images[current_idx]
@@ -465,6 +488,9 @@ class AnalysisControlWindow:
             self.viewer.analyzer.create_histogram_plot(image, title=f"{title} - Full Image")
 
     def _show_profiles(self):
+        # Set as active button in analysis section
+        self._set_active_button('analysis', 'profiles')
+        
         if not self.viewer._internal_images or not self.viewer.mouse.draw_lines: return
         current_idx = self.viewer.trackbar.parameters.get('show', 0)
         image, title = self.viewer._internal_images[current_idx]
@@ -497,11 +523,17 @@ class AnalysisControlWindow:
         self._update_quick_access_buttons()
 
     def _undo_last_point(self):
+        # Set as active button in drawing management section
+        self._set_active_button('drawing_management', 'undo')
+        
         if self.viewer.mouse.is_polygon_mode and self.viewer.mouse.current_polygon:
             self.viewer.mouse.undo_last_point()
             self.viewer.log("Last polygon point undone.")
 
     def _clear_last_rectangle(self):
+        # Set as active button in drawing management section
+        self._set_active_button('drawing_management', 'clear_rect')
+        
         if self.viewer.mouse.draw_rects:
             if self.viewer.mouse.selected_roi == len(self.viewer.mouse.draw_rects) - 1:
                 self.viewer.mouse.selected_roi = None
@@ -512,6 +544,9 @@ class AnalysisControlWindow:
             self.viewer.log("Last rectangle cleared")
 
     def _clear_last_line(self):
+        # Set as active button in drawing management section
+        self._set_active_button('drawing_management', 'clear_line')
+        
         if self.viewer.mouse.draw_lines:
             if self.viewer.mouse.selected_line == len(self.viewer.mouse.draw_lines) - 1:
                 self.viewer.mouse.selected_line = None
@@ -523,6 +558,9 @@ class AnalysisControlWindow:
         self.viewer.mouse.current_line = None
 
     def _clear_last_polygon(self):
+        # Set as active button in drawing management section
+        self._set_active_button('drawing_management', 'clear_polygon')
+        
         if self.viewer.mouse.draw_polygons:
             if self.viewer.mouse.selected_polygon == len(self.viewer.mouse.draw_polygons) - 1:
                 self.viewer.mouse.selected_polygon = None
@@ -533,6 +571,9 @@ class AnalysisControlWindow:
             self.viewer.log("Last polygon cleared")
 
     def _clear_all(self):
+        # Set as active button in drawing management section
+        self._set_active_button('drawing_management', 'clear_all')
+        
         self.viewer.mouse.draw_rects.clear()
         self.viewer.mouse.draw_lines.clear()
         self.viewer.mouse.draw_polygons.clear()
@@ -544,9 +585,15 @@ class AnalysisControlWindow:
         self.viewer.log("Cleared all ROIs, lines, and polygons")
 
     def _close_plots(self):
+        # Set as active button in export_plots section
+        self._set_active_button('export_plots', 'close_plots')
+        
         self.viewer.analyzer.close_all_plots()
 
     def _export_polygons(self):
+        # Set as active button in export_plots section
+        self._set_active_button('export_plots', 'export_polygons')
+        
         if not self.viewer.mouse.draw_polygons: 
             messagebox.showinfo("Export Polygons", "No polygons available to export.")
             return
@@ -581,6 +628,9 @@ class AnalysisControlWindow:
             self.viewer.log(f"Export error: {str(e)}")
         
     def _export_analysis_data(self):
+        # Set as active button in export_plots section
+        self._set_active_button('export_plots', 'export_data')
+        
         if not self.viewer._internal_images:
             messagebox.showinfo("Export Analysis", "No image available for analysis.")
             return
@@ -672,10 +722,16 @@ class AnalysisControlWindow:
             self.viewer.log(f"Export error: {str(e)}")
 
     def _open_thresholding_window(self):
+        # Set as active button in analysis section
+        self._set_active_button('analysis', 'thresholding')
+        
         self.thresholding_manager.open_colorspace_selection_window()
         
     def _open_plot_customization(self):
         """Open the plot customization dialog."""
+        # Set as active button in analysis section
+        self._set_active_button('analysis', 'customize_plots')
+        
         try:
             plot_dialog = PlotCustomizationDialog(self.root, self.theme_manager, plot_type="histogram")
             plot_dialog.show(on_apply=self._on_plot_settings_apply)
@@ -789,17 +845,57 @@ class AnalysisControlWindow:
             
             # Update rectangle mode button
             if self.quick_access_buttons.get('rectangle_mode'):
-                style = "Primary.TButton" if is_rectangle_mode else self.theme_manager.get_button_style()
+                style = self.theme_manager.get_button_style("active") if is_rectangle_mode else self.theme_manager.get_button_style()
                 self.quick_access_buttons['rectangle_mode'].config(style=style)
                 
             # Update line mode button
             if self.quick_access_buttons.get('line_mode'):
-                style = "Primary.TButton" if self.viewer.mouse.is_line_mode else self.theme_manager.get_button_style()
+                style = self.theme_manager.get_button_style("active") if self.viewer.mouse.is_line_mode else self.theme_manager.get_button_style()
                 self.quick_access_buttons['line_mode'].config(style=style)
                 
             # Update polygon mode button
             if self.quick_access_buttons.get('polygon_mode'):
-                style = "Primary.TButton" if self.viewer.mouse.is_polygon_mode else self.theme_manager.get_button_style()
+                style = self.theme_manager.get_button_style("active") if self.viewer.mouse.is_polygon_mode else self.theme_manager.get_button_style()
                 self.quick_access_buttons['polygon_mode'].config(style=style)
         except Exception as e:
             self.viewer.log(f"Error updating quick access buttons: {e}")
+
+    def _set_active_button(self, section, button_key):
+        """Set a button as active and update visual states for the section."""
+        if not self.action_buttons:
+            return
+            
+        try:
+            # Clear previous active button in this section
+            if self.active_states.get(section):
+                prev_button = self.action_buttons.get(self.active_states[section])
+                if prev_button:
+                    prev_button.config(style=self.theme_manager.get_button_style())
+            
+            # Set new active button
+            self.active_states[section] = button_key
+            current_button = self.action_buttons.get(button_key)
+            if current_button:
+                current_button.config(style=self.theme_manager.get_button_style("active"))
+                
+        except Exception as e:
+            if self.viewer:
+                self.viewer.log(f"Button state error: {e}")
+
+    def _provide_button_feedback(self, button):
+        """Provide visual feedback when action buttons are clicked."""
+        if not button:
+            return
+            
+        try:
+            # Store original style
+            original_style = button.cget('style')
+            
+            # Change to active style temporarily
+            button.config(style=self.theme_manager.get_button_style("active"))
+            
+            # Schedule return to original style after 200ms
+            self.root.after(200, lambda: button.config(style=original_style))
+        except Exception as e:
+            if self.viewer:
+                self.viewer.log(f"Button feedback error: {e}")

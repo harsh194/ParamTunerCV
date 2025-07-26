@@ -115,6 +115,12 @@ class ThemeManager:
                   foreground=[('!active', button_fg_color)],
                   background=[('!active', secondary_color), ('active', "#5a6268")])
 
+        # Active state button for drawing modes
+        style.configure("Active.TButton")
+        style.map("Active.TButton",
+                  foreground=[('!active', '#ffffff')],
+                  background=[('!active', '#28a745'), ('active', '#1e7e34')])  # Green for active
+
     def _configure_dark_theme(self, style):
         """Configure dark theme colors and styles."""
         # Colors
@@ -204,12 +210,20 @@ class ThemeManager:
                   foreground=[('!active', button_fg_color)],
                   background=[('!active', secondary_color), ('active', "#5a6268")])
 
+        # Active state button for drawing modes
+        style.configure("Active.TButton")
+        style.map("Active.TButton",
+                  foreground=[('!active', '#ffffff')],
+                  background=[('!active', '#28a745'), ('active', '#1e7e34')])  # Green for active
+
     def get_button_style(self, button_type="default"):
         """Get the appropriate button style name based on type."""
         if button_type == "primary":
             return "Primary.TButton"
         if button_type == "secondary":
             return "Secondary.TButton"
+        if button_type == "active":
+            return "Active.TButton"
         return "TButton"
 
     def get_frame_style(self, frame_type="default"):
