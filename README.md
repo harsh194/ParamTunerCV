@@ -338,9 +338,9 @@ print(f"Triangle threshold: {triangle_thresh}")
 ## 🖱️ Mouse Interactions
 
 ### Interaction Modes
-- **Normal Mode**: Click and drag for rectangle ROI selection
-- **Line Mode**: Click to start line, click again to end (for pixel profiles)
-- **Polygon Mode**: Click to add vertices, right-click or click near first point to close
+- **Rectangle Mode**: Click and drag for rectangle ROI selection (default mode, 'R' key)
+- **Line Mode**: Click to start line, click again to end (for pixel profiles, 'L' key)
+- **Polygon Mode**: Click to add vertices, right-click or click near first point to close ('P' key)
 
 ### Mouse Controls
 - **Left Click & Drag**: Create rectangle ROI
@@ -354,10 +354,12 @@ print(f"Triangle threshold: {triangle_thresh}")
 
 ### Keyboard Shortcuts
 - **'q' or ESC**: Quit application
-- **'r'**: Reset zoom and pan
+- **'r'**: Toggle rectangle drawing mode (default mode)
 - **'l'**: Toggle line drawing mode
 - **'p'**: Toggle polygon drawing mode
-- **'n'**: Return to normal (rectangle) mode
+- **'h'**: Show histogram for selected region
+- **Shift+P**: Show pixel profiles for selected lines
+- **Escape**: Clear current drawing mode (return to rectangle mode)
 
 ## 🎯 Advanced Usage Patterns
 
@@ -470,11 +472,12 @@ control_window = AnalysisControlWindow(viewer)
 control_window.show()
 
 # Available controls:
-# - Tool mode selection (rectangle, line, polygon)
-# - Analysis function quick access
-# - Selection management
-# - Export controls
+# - Drawing tool mode selection (rectangle, line, polygon) with keyboard shortcuts (R, L, P)
+# - Analysis function quick access (histogram, pixel profiles)
+# - Selection management for ROIs, lines, and polygons
+# - Export controls for data and coordinates
 # - Plot customization access
+# - Keyboard shortcuts: R (Rectangle), L (Line), P (Polygon), H (Histogram), Shift+P (Profiles)
 ```
 
 ### Plot Customization

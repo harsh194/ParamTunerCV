@@ -305,6 +305,20 @@ class AnalysisControlWindow:
         clear_label = ttk.Label(drawing_frame, text="Clear Tools:", font=('TkDefaultFont', 9, 'bold'))
         clear_label.pack(anchor='w', pady=(10, 5))
 
+        # Create a grid for clear buttons
+        clear_grid = ttk.Frame(drawing_frame, style=self.theme_manager.get_frame_style())
+        clear_grid.pack(fill='x', pady=2)
+        clear_grid.columnconfigure(0, weight=1)
+        clear_grid.columnconfigure(1, weight=1)
+
+        clear_rect_btn = ttk.Button(clear_grid, text="🗑️ Clear Last Rectangle", command=self._clear_last_rectangle, style=warning_style)
+        clear_rect_btn.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
+        Tooltip(clear_rect_btn, "Clear the last drawn rectangle/ROI")
+
+        clear_line_btn = ttk.Button(clear_grid, text="🗑️ Clear Last Line", command=self._clear_last_line, style=warning_style)
+        clear_line_btn.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
+        Tooltip(clear_line_btn, "Clear the last drawn line")
+
         clear_last_btn = ttk.Button(drawing_frame, text="🗑️ Clear Last Polygon", command=self._clear_last_polygon, style=warning_style)
         clear_last_btn.pack(fill='x', pady=2)
         Tooltip(clear_last_btn, "Clear the last drawn polygon (Delete key)")
@@ -476,10 +490,36 @@ class AnalysisControlWindow:
         self.viewer.log(f"Polygon mode: {'On' if self.viewer.mouse.is_polygon_mode else 'Off'}")
         self._update_quick_access_buttons()
 
+    def _toggle_rectangle_mode(self):
+        self.viewer.mouse.is_line_mode = False
+        self.viewer.mouse.is_polygon_mode = False
+        self.viewer.log("Rectangle mode: On")
+        self._update_quick_access_buttons()
+
     def _undo_last_point(self):
         if self.viewer.mouse.is_polygon_mode and self.viewer.mouse.current_polygon:
             self.viewer.mouse.undo_last_point()
             self.viewer.log("Last polygon point undone.")
+
+    def _clear_last_rectangle(self):
+        if self.viewer.mouse.draw_rects:
+            if self.viewer.mouse.selected_roi == len(self.viewer.mouse.draw_rects) - 1:
+                self.viewer.mouse.selected_roi = None
+            
+            self.viewer.mouse.draw_rects.pop()
+            self.update_selectors()
+            self.viewer.update_display()
+            self.viewer.log("Last rectangle cleared")
+
+    def _clear_last_line(self):
+        if self.viewer.mouse.draw_lines:
+            if self.viewer.mouse.selected_line == len(self.viewer.mouse.draw_lines) - 1:
+                self.viewer.mouse.selected_line = None
+            
+            self.viewer.mouse.draw_lines.pop()
+            self.update_selectors()
+            self.viewer.update_display()
+            self.viewer.log("Last line cleared")
 
     def _clear_last_polygon(self):
         if self.viewer.mouse.draw_polygons:
@@ -669,7 +709,9 @@ class AnalysisControlWindow:
         def on_key_press(event):
             try:
                 key = event.keysym.lower()
-                if key == 'l':
+                if key == 'r':
+                    self._toggle_rectangle_mode()
+                elif key == 'l':
                     self._toggle_line_mode()
                 elif key == 'p' and not (event.state & 0x1):  # P without shift
                     self._toggle_polygon_mode()
@@ -703,6 +745,17 @@ class AnalysisControlWindow:
         drawing_frame.pack(fill='x', pady=(0, 10))
         drawing_frame.columnconfigure(0, weight=1)
         drawing_frame.columnconfigure(1, weight=1)
+        drawing_frame.columnconfigure(2, weight=1)
+        
+        rectangle_btn = ttk.Button(
+            drawing_frame, 
+            text="⬛ Rectangle Mode", 
+            command=self._toggle_rectangle_mode,
+            style=self.theme_manager.get_button_style("secondary")
+        )
+        rectangle_btn.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
+        Tooltip(rectangle_btn, "Toggle rectangle drawing mode (R key)")
+        self.quick_access_buttons['rectangle_mode'] = rectangle_btn
         
         line_btn = ttk.Button(
             drawing_frame, 
@@ -710,7 +763,7 @@ class AnalysisControlWindow:
             command=self._toggle_line_mode,
             style=self.theme_manager.get_button_style("secondary")
         )
-        line_btn.grid(row=0, column=0, padx=3, pady=2, sticky="ew")
+        line_btn.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
         Tooltip(line_btn, "Toggle line drawing mode (L key)")
         self.quick_access_buttons['line_mode'] = line_btn
         
@@ -720,7 +773,7 @@ class AnalysisControlWindow:
             command=self._toggle_polygon_mode,
             style=self.theme_manager.get_button_style("secondary")
         )
-        polygon_btn.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
+        polygon_btn.grid(row=0, column=2, padx=2, pady=2, sticky="ew")
         Tooltip(polygon_btn, "Toggle polygon drawing mode (P key)")
         self.quick_access_buttons['polygon_mode'] = polygon_btn
         
@@ -760,6 +813,14 @@ class AnalysisControlWindow:
             return
             
         try:
+            # Rectangle mode is active when neither line nor polygon mode is active
+            is_rectangle_mode = not self.viewer.mouse.is_line_mode and not self.viewer.mouse.is_polygon_mode
+            
+            # Update rectangle mode button
+            if self.quick_access_buttons.get('rectangle_mode'):
+                style = "Primary.TButton" if is_rectangle_mode else self.theme_manager.get_button_style("secondary")
+                self.quick_access_buttons['rectangle_mode'].config(style=style)
+                
             # Update line mode button
             if self.quick_access_buttons.get('line_mode'):
                 style = "Primary.TButton" if self.viewer.mouse.is_line_mode else self.theme_manager.get_button_style("secondary")
