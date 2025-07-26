@@ -737,11 +737,7 @@ class AnalysisControlWindow:
         self.root.focus_set()  # Make sure the window can receive key events
 
     def _create_quick_access_section(self, parent_frame):
-        quick_frame = self._create_section_frame(parent_frame, "Quick Access")
-        
-        # Drawing tools subsection
-        draw_label = ttk.Label(quick_frame, text="Drawing Tools:", font=('TkDefaultFont', 9, 'bold'))
-        draw_label.pack(anchor='w', pady=(0, 5))
+        quick_frame = self._create_section_frame(parent_frame, "Drawing Tools")
         
         drawing_frame = ttk.Frame(quick_frame, style=self.theme_manager.get_frame_style())
         drawing_frame.pack(fill='x', pady=(0, 10))
