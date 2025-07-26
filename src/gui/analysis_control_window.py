@@ -82,12 +82,12 @@ class AnalysisControlWindow:
 
             self.theme_manager.configure_theme(self.root)
             
-            # Create a container frame with padding
+            # Create a container frame with generous padding
             container = ttk.Frame(self.root)
-            container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            container.pack(fill=tk.BOTH, expand=True, padx=10, pady=8)
             
             # Create canvas with scrollbar - store as instance attributes
-            self.canvas = tk.Canvas(container, highlightthickness=0)
+            self.canvas = tk.Canvas(container, highlightthickness=0, bd=0)
             self.scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
             
             # Create a main frame inside the canvas - store as instance attribute
@@ -95,7 +95,8 @@ class AnalysisControlWindow:
             
             # Configure the canvas
             self.canvas.configure(yscrollcommand=self.scrollbar.set)
-            self.canvas_frame = self.canvas.create_window((0, 0), window=self.main_frame, anchor="nw")
+            # Position with left offset to prevent cutoff
+            self.canvas_frame = self.canvas.create_window((10, 5), window=self.main_frame, anchor="nw")
             
             # Pack the canvas and scrollbar
             self.canvas.pack(side="left", fill="both", expand=True)
@@ -108,9 +109,9 @@ class AnalysisControlWindow:
             # Add mouse wheel scrolling support
             self._bind_mousewheel()
             
-            # Add some initial padding to ensure content doesn't get cut off
+            # Add generous initial padding to ensure content doesn't get cut off
             padding_frame = ttk.Frame(self.main_frame, style=self.theme_manager.get_frame_style())
-            padding_frame.pack(fill='x', pady=(10, 20))
+            padding_frame.pack(fill='x', pady=(15, 25), padx=10)
 
             self._create_quick_access_section(self.main_frame)
             self._create_selection_section(self.main_frame)
@@ -148,9 +149,10 @@ class AnalysisControlWindow:
     def _on_canvas_configure(self, event):
         """Update the scrollable frame width when the canvas is resized."""
         try:
-            # Update the width of the scrollable frame to match the canvas width
-            canvas_width = event.width
-            self.canvas.itemconfig(self.canvas_frame, width=canvas_width)
+            # Update the width of the scrollable frame to match the canvas width (account for left offset)
+            canvas_width = event.width - 20  # Account for left/right margins
+            if canvas_width > 0:
+                self.canvas.itemconfig(self.canvas_frame, width=canvas_width)
         except Exception as e:
             if self.viewer:
                 self.viewer.log(f"Error configuring canvas: {e}")
@@ -179,26 +181,29 @@ class AnalysisControlWindow:
 
     def _create_section_frame(self, parent, title):
         section_frame = ttk.Frame(parent, style=self.theme_manager.get_frame_style())
-        section_frame.pack(fill='x', pady=(5, 10))
+        section_frame.pack(fill='x', pady=(5, 10), padx=5)
         
         inner_frame = ttk.Frame(section_frame, style=self.theme_manager.get_frame_style())
-        inner_frame.pack(fill='x', padx=15, pady=12)
+        inner_frame.pack(fill='x', padx=20, pady=12)
         
         header = ttk.Label(inner_frame, text=title, style="Header.TLabel")
-        header.pack(fill='x', pady=(0, 8))
+        header.pack(fill='x', pady=(0, 8), padx=2)
         
         separator = ttk.Separator(inner_frame, orient='horizontal')
-        separator.pack(fill='x', pady=(0, 12))
+        separator.pack(fill='x', pady=(0, 12), padx=2)
         
         return inner_frame
 
     def _create_selection_section(self, parent_frame):
         selection_frame = self._create_section_frame(parent_frame, "Selection")
 
+        # ROI Selection
         roi_frame = ttk.Frame(selection_frame, style=self.theme_manager.get_frame_style())
-        roi_frame.pack(fill='x', pady=2)
-        roi_label = ttk.Label(roi_frame, text="ROI:")
-        roi_label.pack(side=tk.LEFT, padx=(0, 10))
+        roi_frame.pack(fill='x', pady=3, padx=8)
+        roi_frame.columnconfigure(1, weight=1)
+        
+        roi_label = ttk.Label(roi_frame, text="ROI:", width=10, anchor='w')
+        roi_label.grid(row=0, column=0, sticky='w', padx=(5, 12))
         Tooltip(roi_label, "Select a region of interest for analysis")
         
         self.roi_var = tk.StringVar(value="Full Image")
@@ -209,14 +214,17 @@ class AnalysisControlWindow:
             state="readonly",
             max_dropdown_items=10
         )
-        self.roi_combo.pack(fill='x', expand=True)
+        self.roi_combo.grid(row=0, column=1, sticky='ew')
         self.roi_combo.bind('<<ComboboxSelected>>', self._on_roi_select)
         Tooltip(self.roi_combo, "Choose a specific region of interest or use the full image")
 
+        # Line Selection
         line_frame = ttk.Frame(selection_frame, style=self.theme_manager.get_frame_style())
-        line_frame.pack(fill='x', pady=2)
-        line_label = ttk.Label(line_frame, text="Line:")
-        line_label.pack(side=tk.LEFT, padx=(0, 10))
+        line_frame.pack(fill='x', pady=3, padx=8)
+        line_frame.columnconfigure(1, weight=1)
+        
+        line_label = ttk.Label(line_frame, text="Line:", width=10, anchor='w')
+        line_label.grid(row=0, column=0, sticky='w', padx=(5, 12))
         Tooltip(line_label, "Select a line for pixel profile analysis")
         
         self.line_var = tk.StringVar(value="All Lines")
@@ -227,14 +235,17 @@ class AnalysisControlWindow:
             state="readonly",
             max_dropdown_items=10
         )
-        self.line_combo.pack(fill='x', expand=True)
+        self.line_combo.grid(row=0, column=1, sticky='ew')
         self.line_combo.bind('<<ComboboxSelected>>', self._on_line_select)
         Tooltip(self.line_combo, "Choose a specific line or analyze all lines")
 
+        # Polygon Selection
         poly_frame = ttk.Frame(selection_frame, style=self.theme_manager.get_frame_style())
-        poly_frame.pack(fill='x', pady=2)
-        poly_label = ttk.Label(poly_frame, text="Polygon:")
-        poly_label.pack(side=tk.LEFT, padx=(0, 10))
+        poly_frame.pack(fill='x', pady=3, padx=8)
+        poly_frame.columnconfigure(1, weight=1)
+        
+        poly_label = ttk.Label(poly_frame, text="Polygon:", width=10, anchor='w')
+        poly_label.grid(row=0, column=0, sticky='w', padx=(5, 12))
         Tooltip(poly_label, "Select a polygon for area analysis")
         
         self.polygon_var = tk.StringVar(value="All Polygons")
@@ -245,7 +256,7 @@ class AnalysisControlWindow:
             state="readonly",
             max_dropdown_items=10
         )
-        self.polygon_combo.pack(fill='x', expand=True)
+        self.polygon_combo.grid(row=0, column=1, sticky='ew')
         self.polygon_combo.bind('<<ComboboxSelected>>', self._on_polygon_select)
         Tooltip(self.polygon_combo, "Choose a specific polygon or analyze all polygons")
 
