@@ -290,7 +290,7 @@ class AnalysisControlWindow:
     def _create_drawing_section(self, parent_frame):
         drawing_frame = self._create_section_frame(parent_frame, "Drawing Management")
 
-        btn_style = self.theme_manager.get_button_style("secondary")
+        btn_style = self.theme_manager.get_button_style()
         warning_style = self.theme_manager.get_button_style()  # Use default for destructive actions
         
         # Edit tools
@@ -749,7 +749,7 @@ class AnalysisControlWindow:
             drawing_frame, 
             text="⬛ Rectangle Mode", 
             command=self._toggle_rectangle_mode,
-            style=self.theme_manager.get_button_style("secondary")
+            style=self.theme_manager.get_button_style()
         )
         rectangle_btn.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
         Tooltip(rectangle_btn, "Toggle rectangle drawing mode (R key)")
@@ -759,7 +759,7 @@ class AnalysisControlWindow:
             drawing_frame, 
             text="📏 Line Mode", 
             command=self._toggle_line_mode,
-            style=self.theme_manager.get_button_style("secondary")
+            style=self.theme_manager.get_button_style()
         )
         line_btn.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
         Tooltip(line_btn, "Toggle line drawing mode (L key)")
@@ -769,7 +769,7 @@ class AnalysisControlWindow:
             drawing_frame, 
             text="🔺 Polygon Mode", 
             command=self._toggle_polygon_mode,
-            style=self.theme_manager.get_button_style("secondary")
+            style=self.theme_manager.get_button_style()
         )
         polygon_btn.grid(row=0, column=2, padx=2, pady=2, sticky="ew")
         Tooltip(polygon_btn, "Toggle polygon drawing mode (P key)")
@@ -789,17 +789,17 @@ class AnalysisControlWindow:
             
             # Update rectangle mode button
             if self.quick_access_buttons.get('rectangle_mode'):
-                style = "Primary.TButton" if is_rectangle_mode else self.theme_manager.get_button_style("secondary")
+                style = "Primary.TButton" if is_rectangle_mode else self.theme_manager.get_button_style()
                 self.quick_access_buttons['rectangle_mode'].config(style=style)
                 
             # Update line mode button
             if self.quick_access_buttons.get('line_mode'):
-                style = "Primary.TButton" if self.viewer.mouse.is_line_mode else self.theme_manager.get_button_style("secondary")
+                style = "Primary.TButton" if self.viewer.mouse.is_line_mode else self.theme_manager.get_button_style()
                 self.quick_access_buttons['line_mode'].config(style=style)
                 
             # Update polygon mode button
             if self.quick_access_buttons.get('polygon_mode'):
-                style = "Primary.TButton" if self.viewer.mouse.is_polygon_mode else self.theme_manager.get_button_style("secondary")
+                style = "Primary.TButton" if self.viewer.mouse.is_polygon_mode else self.theme_manager.get_button_style()
                 self.quick_access_buttons['polygon_mode'].config(style=style)
         except Exception as e:
             self.viewer.log(f"Error updating quick access buttons: {e}")
