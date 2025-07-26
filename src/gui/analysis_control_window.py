@@ -274,8 +274,8 @@ class AnalysisControlWindow:
         # Create a grid layout for better organization
         analysis_grid = ttk.Frame(analysis_frame, style=self.theme_manager.get_frame_style())
         analysis_grid.pack(fill='x', pady=5)
-        analysis_grid.columnconfigure(0, weight=1)
-        analysis_grid.columnconfigure(1, weight=1)
+        analysis_grid.columnconfigure(0, weight=1, minsize=100)
+        analysis_grid.columnconfigure(1, weight=1, minsize=100)
         
         hist_btn = ttk.Button(analysis_grid, text="📊 Show Histogram", command=self._show_histogram, style=btn_style)
         hist_btn.grid(row=0, column=0, padx=3, pady=3, sticky="ew")
@@ -287,13 +287,13 @@ class AnalysisControlWindow:
         Tooltip(prof_btn, "Display pixel profiles of the selected lines (Shift+P)")
         self.action_buttons['profiles'] = prof_btn
 
-        thresh_btn = ttk.Button(analysis_frame, text="🌡️ Thresholding", command=self._open_thresholding_window, style=btn_style)
-        thresh_btn.pack(fill='x', pady=3)
+        thresh_btn = ttk.Button(analysis_grid, text="🌡️ Thresholding", command=self._open_thresholding_window, style=btn_style)
+        thresh_btn.grid(row=1, column=0, padx=3, pady=3, sticky="ew")
         Tooltip(thresh_btn, "Open the thresholding window for image segmentation")
         self.action_buttons['thresholding'] = thresh_btn
         
-        customize_btn = ttk.Button(analysis_frame, text="🎨 Customize Plots", command=self._open_plot_customization, style=btn_style)
-        customize_btn.pack(fill='x', pady=3)
+        customize_btn = ttk.Button(analysis_grid, text="🎨 Customize Plots", command=self._open_plot_customization, style=btn_style)
+        customize_btn.grid(row=1, column=1, padx=3, pady=3, sticky="ew")
         Tooltip(customize_btn, "Customize plot appearance, colors, and save presets")
         self.action_buttons['customize_plots'] = customize_btn
 
@@ -319,8 +319,8 @@ class AnalysisControlWindow:
         # Create a grid for clear buttons
         clear_grid = ttk.Frame(drawing_frame, style=self.theme_manager.get_frame_style())
         clear_grid.pack(fill='x', pady=2)
-        clear_grid.columnconfigure(0, weight=1)
-        clear_grid.columnconfigure(1, weight=1)
+        clear_grid.columnconfigure(0, weight=1, minsize=100)
+        clear_grid.columnconfigure(1, weight=1, minsize=100)
 
         clear_rect_btn = ttk.Button(clear_grid, text="🗑️ Clear Last Rectangle", command=self._clear_last_rectangle, style=warning_style)
         clear_rect_btn.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
@@ -332,13 +332,19 @@ class AnalysisControlWindow:
         Tooltip(clear_line_btn, "Clear the last drawn line")
         self.action_buttons['clear_line'] = clear_line_btn
 
-        clear_last_btn = ttk.Button(drawing_frame, text="🗑️ Clear Last Polygon", command=self._clear_last_polygon, style=warning_style)
-        clear_last_btn.pack(fill='x', pady=2)
+        # Create another grid for the remaining clear buttons
+        clear_grid2 = ttk.Frame(drawing_frame, style=self.theme_manager.get_frame_style())
+        clear_grid2.pack(fill='x', pady=2)
+        clear_grid2.columnconfigure(0, weight=1, minsize=100)
+        clear_grid2.columnconfigure(1, weight=1, minsize=100)
+
+        clear_last_btn = ttk.Button(clear_grid2, text="🗑️ Clear Last Polygon", command=self._clear_last_polygon, style=warning_style)
+        clear_last_btn.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
         Tooltip(clear_last_btn, "Clear the last drawn polygon (Delete key)")
         self.action_buttons['clear_polygon'] = clear_last_btn
 
-        clear_all_btn = ttk.Button(drawing_frame, text="🗑️ Clear All Objects", command=self._clear_all, style=warning_style)
-        clear_all_btn.pack(fill='x', pady=2)
+        clear_all_btn = ttk.Button(clear_grid2, text="🗑️ Clear All Objects", command=self._clear_all, style=warning_style)
+        clear_all_btn.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
         Tooltip(clear_all_btn, "Clear all ROIs, lines, and polygons (Ctrl+Delete)")
         self.action_buttons['clear_all'] = clear_all_btn
 
@@ -351,13 +357,19 @@ class AnalysisControlWindow:
         export_label = ttk.Label(export_frame, text="Export Data:", font=('TkDefaultFont', 9, 'bold'))
         export_label.pack(anchor='w', pady=(0, 5))
         
-        export_data_btn = ttk.Button(export_frame, text="📊 Export Analysis Data", command=self._export_analysis_data, style=btn_style)
-        export_data_btn.pack(fill='x', pady=3)
+        # Create a grid for export buttons
+        export_grid = ttk.Frame(export_frame, style=self.theme_manager.get_frame_style())
+        export_grid.pack(fill='x', pady=3)
+        export_grid.columnconfigure(0, weight=1, minsize=100)
+        export_grid.columnconfigure(1, weight=1, minsize=100)
+        
+        export_data_btn = ttk.Button(export_grid, text="📊 Export Analysis Data", command=self._export_analysis_data, style=btn_style)
+        export_data_btn.grid(row=0, column=0, padx=3, pady=3, sticky="ew")
         Tooltip(export_data_btn, "Export histogram or profile data to CSV/JSON (Ctrl+E)")
         self.action_buttons['export_data'] = export_data_btn
 
-        export_poly_btn = ttk.Button(export_frame, text="📐 Export Polygons", command=self._export_polygons, style=btn_style)
-        export_poly_btn.pack(fill='x', pady=3)
+        export_poly_btn = ttk.Button(export_grid, text="📐 Export Polygons", command=self._export_polygons, style=btn_style)
+        export_poly_btn.grid(row=0, column=1, padx=3, pady=3, sticky="ew")
         Tooltip(export_poly_btn, "Export polygons coordinates to file (Ctrl+Shift+E)")
         self.action_buttons['export_polygons'] = export_poly_btn
         
@@ -795,9 +807,9 @@ class AnalysisControlWindow:
         
         drawing_frame = ttk.Frame(quick_frame, style=self.theme_manager.get_frame_style())
         drawing_frame.pack(fill='x', pady=(0, 10))
-        drawing_frame.columnconfigure(0, weight=1)
-        drawing_frame.columnconfigure(1, weight=1)
-        drawing_frame.columnconfigure(2, weight=1)
+        drawing_frame.columnconfigure(0, weight=1, minsize=100)
+        drawing_frame.columnconfigure(1, weight=1, minsize=100)
+        drawing_frame.columnconfigure(2, weight=1, minsize=100)
         
         rectangle_btn = ttk.Button(
             drawing_frame, 
