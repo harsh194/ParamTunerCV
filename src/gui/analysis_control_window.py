@@ -90,9 +90,9 @@ class AnalysisControlWindow:
 
             self.theme_manager.configure_theme(self.root)
             
-            # Create a container frame with generous padding
+            # Create a container frame
             container = ttk.Frame(self.root)
-            container.pack(fill=tk.BOTH, expand=True, padx=10, pady=8)
+            container.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
             
             # Create canvas with scrollbar - store as instance attributes
             self.canvas = tk.Canvas(container, highlightthickness=0, bd=0)
@@ -103,8 +103,8 @@ class AnalysisControlWindow:
             
             # Configure the canvas
             self.canvas.configure(yscrollcommand=self.scrollbar.set)
-            # Position with left offset to prevent cutoff
-            self.canvas_frame = self.canvas.create_window((10, 5), window=self.main_frame, anchor="nw")
+            # Position at origin to fill width
+            self.canvas_frame = self.canvas.create_window((0, 0), window=self.main_frame, anchor="nw")
             
             # Pack the canvas and scrollbar
             self.canvas.pack(side="left", fill="both", expand=True)
@@ -117,9 +117,7 @@ class AnalysisControlWindow:
             # Add mouse wheel scrolling support
             self._bind_mousewheel()
             
-            # Add generous initial padding to ensure content doesn't get cut off
-            padding_frame = ttk.Frame(self.main_frame, style=self.theme_manager.get_frame_style())
-            padding_frame.pack(fill='x', pady=(15, 25), padx=10)
+            # No padding frame needed - content fills full width
 
             self._create_quick_access_section(self.main_frame)
             self._create_selection_section(self.main_frame)
@@ -127,9 +125,9 @@ class AnalysisControlWindow:
             self._create_drawing_section(self.main_frame)
             self._create_export_section(self.main_frame)
             
-            # Add bottom padding to prevent text cutoff
+            # Add minimal bottom padding to prevent text cutoff
             bottom_padding = ttk.Frame(self.main_frame, style=self.theme_manager.get_frame_style())
-            bottom_padding.pack(fill='x', pady=(10, 30))
+            bottom_padding.pack(fill='x', pady=(5, 15), padx=0)
 
             self.update_selectors()
             self._update_quick_access_buttons()
@@ -157,8 +155,8 @@ class AnalysisControlWindow:
     def _on_canvas_configure(self, event):
         """Update the scrollable frame width when the canvas is resized."""
         try:
-            # Update the width of the scrollable frame to match the canvas width (account for left offset)
-            canvas_width = event.width - 20  # Account for left/right margins
+            # Update the width of the scrollable frame to match the full canvas width
+            canvas_width = event.width
             if canvas_width > 0:
                 self.canvas.itemconfig(self.canvas_frame, width=canvas_width)
         except Exception as e:
@@ -189,10 +187,10 @@ class AnalysisControlWindow:
 
     def _create_section_frame(self, parent, title):
         section_frame = ttk.Frame(parent, style=self.theme_manager.get_frame_style())
-        section_frame.pack(fill='x', pady=(5, 10), padx=5)
+        section_frame.pack(fill='x', pady=(5, 10), padx=2)
         
         inner_frame = ttk.Frame(section_frame, style=self.theme_manager.get_frame_style())
-        inner_frame.pack(fill='x', padx=20, pady=12)
+        inner_frame.pack(fill='x', padx=5, pady=12)
         
         header = ttk.Label(inner_frame, text=title, style="Header.TLabel")
         header.pack(fill='x', pady=(0, 8), padx=2)
