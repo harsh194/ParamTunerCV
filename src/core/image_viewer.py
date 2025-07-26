@@ -647,6 +647,7 @@ class ImageViewer:
             self.mouse.left_button_start = None
             self.mouse.mouse_rect = None
             self.mouse.line_start = None
+            self.mouse.current_line = None
         elif event == cv2.EVENT_RBUTTONDOWN:
             if self.mouse.is_polygon_mode:
                 if len(self.mouse.current_polygon) > 2:
@@ -659,6 +660,7 @@ class ImageViewer:
                     removed_line = self.mouse.draw_lines.pop()
                     self.log(f"Last line removed: {removed_line}")
                     self.analysis_window.update_selectors()
+                self.mouse.current_line = None
             else:
                 if self.mouse.draw_rects: 
                     removed_rect = self.mouse.draw_rects.pop()
@@ -675,6 +677,7 @@ class ImageViewer:
                     self.mouse.draw_lines.clear()
                     self.log("All lines cleared.")
                     self.analysis_window.update_selectors()
+                self.mouse.current_line = None
             else:
                 if self.mouse.draw_rects: 
                     self.mouse.draw_rects.clear()

@@ -520,6 +520,7 @@ class AnalysisControlWindow:
             self.update_selectors()
             self.viewer.update_display()
             self.viewer.log("Last line cleared")
+        self.viewer.mouse.current_line = None
 
     def _clear_last_polygon(self):
         if self.viewer.mouse.draw_polygons:
@@ -536,6 +537,7 @@ class AnalysisControlWindow:
         self.viewer.mouse.draw_lines.clear()
         self.viewer.mouse.draw_polygons.clear()
         self.viewer.mouse.current_polygon.clear()
+        self.viewer.mouse.current_line = None
         self.viewer.mouse.clear_selections()
         self.update_selectors()
         self.viewer.update_display()
