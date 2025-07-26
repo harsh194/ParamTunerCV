@@ -332,19 +332,13 @@ class AnalysisControlWindow:
         Tooltip(clear_line_btn, "Clear the last drawn line")
         self.action_buttons['clear_line'] = clear_line_btn
 
-        # Create another grid for the remaining clear buttons
-        clear_grid2 = ttk.Frame(drawing_frame, style=self.theme_manager.get_frame_style())
-        clear_grid2.pack(fill='x', pady=2)
-        clear_grid2.columnconfigure(0, weight=1, minsize=100)
-        clear_grid2.columnconfigure(1, weight=1, minsize=100)
-
-        clear_last_btn = ttk.Button(clear_grid2, text="🗑️ Clear Last Polygon", command=self._clear_last_polygon, style=warning_style)
-        clear_last_btn.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
+        clear_last_btn = ttk.Button(clear_grid, text="🗑️ Clear Last Polygon", command=self._clear_last_polygon, style=warning_style)
+        clear_last_btn.grid(row=1, column=0, padx=2, pady=2, sticky="ew")
         Tooltip(clear_last_btn, "Clear the last drawn polygon (Delete key)")
         self.action_buttons['clear_polygon'] = clear_last_btn
 
-        clear_all_btn = ttk.Button(clear_grid2, text="🗑️ Clear All Objects", command=self._clear_all, style=warning_style)
-        clear_all_btn.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
+        clear_all_btn = ttk.Button(clear_grid, text="🗑️ Clear All Objects", command=self._clear_all, style=warning_style)
+        clear_all_btn.grid(row=1, column=1, padx=2, pady=2, sticky="ew")
         Tooltip(clear_all_btn, "Clear all ROIs, lines, and polygons (Ctrl+Delete)")
         self.action_buttons['clear_all'] = clear_all_btn
 
