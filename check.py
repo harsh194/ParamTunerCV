@@ -36,7 +36,6 @@ while viewer.should_loop_continue():
 
     base_color_image = np.full((IMG_HEIGHT, IMG_WIDTH, 3), (block_count * 5, 0, 0), dtype=np.uint8)
     cv2.rectangle(base_color_image, (50, 50), (IMG_WIDTH - 50, IMG_HEIGHT - 50), (0, 255, 0), 3)
-    cv2.putText(base_color_image, f"Blocks: {block_count}", (60,80), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,0), 1)
 
     gray_image = cv2.cvtColor(base_color_image, cv2.COLOR_BGR2GRAY)
     gauss_image = gray_image.copy()
@@ -49,7 +48,7 @@ while viewer.should_loop_continue():
     _, thresh_image = cv2.threshold(gauss_image, current_thresh, 255, cv2.THRESH_BINARY)
 
     viewer.display_images = [
-        (base_color_image, f"Color (Blocks: {block_count})"),
+        (base_color_image, "Color"),
         (gray_image, "Grayscale Image"),
         (gauss_image, f"Gaussian Blur (Size: {current_gaussian_size})"),
         (thresh_image, f"Threshold (Val: {current_thresh})")

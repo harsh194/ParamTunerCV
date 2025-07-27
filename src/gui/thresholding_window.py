@@ -1447,8 +1447,8 @@ class ThresholdingWindow:
         
         # Adaptive method trackbars (no threshold type or adaptive method - controlled by UI)
         adaptive_configs = [
-            make_trackbar("Block Size", "block_size", 99, 11, callback="odd", custom_callback=lambda v: self.update_threshold(v)),
-            make_trackbar("C Constant", "c_constant", 50, 2, custom_callback=lambda v: self.update_threshold(v)),
+            make_trackbar("Size", "block_size", 99, 11, callback="odd", custom_callback=lambda v: self.update_threshold(v)),
+            make_trackbar("C", "c_constant", 50, 2, custom_callback=lambda v: self.update_threshold(v)),
             make_trackbar("Max", "max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v))
         ]
         
@@ -1570,8 +1570,8 @@ class ThresholdingWindow:
             ]
         elif method == "Adaptive":
             return [
-                make_trackbar("Block Size", "block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
-                make_trackbar("C Constant", "c_constant", 50, 2, custom_callback=safe_param_callback),
+                make_trackbar("Size", "block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
+                make_trackbar("C", "c_constant", 50, 2, custom_callback=safe_param_callback),
                 make_trackbar("Max", "max_value", 255, 255, custom_callback=safe_param_callback)
             ]
         else:
@@ -1625,8 +1625,8 @@ class ThresholdingWindow:
                 channel_lower = channel.lower()
                 trackbars.extend([
                     make_trackbar(f"{channel} Max", f"{channel_lower}_max_value", 255, 255, custom_callback=safe_param_callback),
-                    make_trackbar(f"{channel} Block Size", f"{channel_lower}_block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
-                    make_trackbar(f"{channel} C Constant", f"{channel_lower}_c_constant", 50, 2, custom_callback=safe_param_callback)
+                    make_trackbar(f"{channel} Size", f"{channel_lower}_block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
+                    make_trackbar(f"{channel} C", f"{channel_lower}_c_constant", 50, 2, custom_callback=safe_param_callback)
                 ])
             return trackbars
             
