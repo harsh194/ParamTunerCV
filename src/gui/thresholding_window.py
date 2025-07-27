@@ -816,8 +816,6 @@ class ThresholdingWindow:
         
         # Add zoom/pan transformation methods
         viewer._apply_zoom_pan_transform = self._create_zoom_pan_method(viewer)
-        viewer._draw_rois_on_image = self._create_roi_drawing_method(viewer)
-        viewer._draw_lines_on_image = self._create_line_drawing_method(viewer)
         
         # Add display_images property that triggers processing
         def get_display_images():
@@ -921,7 +919,7 @@ class ThresholdingWindow:
             
             # Only create windows if debug is enabled
             if viewer.config.enable_debug:
-                # Create mouse callback for zoom/pan/drawing functionality similar to main window
+                # Create mouse callback for zoom/pan functionality similar to main window
                 def mouse_callback(event, x, y, flags, param):
                     import cv2  # Import cv2 for event constants
                     try:
@@ -1003,71 +1001,6 @@ class ThresholdingWindow:
                             if hasattr(viewer, '_process_frame_and_check_quit'):
                                 viewer._process_frame_and_check_quit()
                         
-                        # Handle ROI drawing (left button drag) - using original image coordinates
-                        elif event == cv2.EVENT_LBUTTONDOWN:
-                            if not hasattr(viewer.mouse, 'drawn_rois'):
-                                viewer.mouse.drawn_rois = []
-                            viewer.mouse.is_left_button_down = True
-                            viewer.mouse.left_button_start = (ptr_x_orig, ptr_y_orig)
-                            
-                        elif (event == cv2.EVENT_MOUSEMOVE and 
-                              hasattr(viewer.mouse, 'is_left_button_down') and viewer.mouse.is_left_button_down and
-                              hasattr(viewer.mouse, 'left_button_start')):
-                            # Show live preview during ROI drawing in original image coordinates
-                            x1_orig, y1_orig = viewer.mouse.left_button_start
-                            w_orig = abs(x1_orig - ptr_x_orig)
-                            h_orig = abs(y1_orig - ptr_y_orig)
-                            
-                            if w_orig > 2 and h_orig > 2:  # Show preview for reasonable sizes
-                                rect_x_orig = min(x1_orig, ptr_x_orig)
-                                rect_y_orig = min(y1_orig, ptr_y_orig)
-                                viewer.mouse.roi_preview = (rect_x_orig, rect_y_orig, w_orig, h_orig)
-                                
-                                # Force display refresh to show preview
-                                if hasattr(viewer, '_process_frame_and_check_quit'):
-                                    viewer._process_frame_and_check_quit()
-                        
-                        elif event == cv2.EVENT_LBUTTONUP:
-                            if (hasattr(viewer.mouse, 'is_left_button_down') and viewer.mouse.is_left_button_down and
-                                hasattr(viewer.mouse, 'left_button_start')):
-                                
-                                # Calculate ROI in original image coordinates
-                                x1_orig, y1_orig = viewer.mouse.left_button_start
-                                rect_x_orig = min(x1_orig, ptr_x_orig)
-                                rect_y_orig = min(y1_orig, ptr_y_orig)
-                                rect_w_orig = abs(x1_orig - ptr_x_orig)
-                                rect_h_orig = abs(y1_orig - ptr_y_orig)
-                                
-                                # Only add ROI if it's large enough
-                                if rect_w_orig > 5 and rect_h_orig > 5:
-                                    roi = (rect_x_orig, rect_y_orig, rect_w_orig, rect_h_orig)
-                                    viewer.mouse.drawn_rois.append(roi)
-                                    viewer.log(f"ROI added: {roi}")
-                                    
-                                    # Force display refresh to show new ROI
-                                    if hasattr(viewer, '_process_frame_and_check_quit'):
-                                        viewer._process_frame_and_check_quit()
-                                        
-                            # Clear preview and drawing state
-                            if hasattr(viewer.mouse, 'roi_preview'):
-                                delattr(viewer.mouse, 'roi_preview')
-                            viewer.mouse.is_left_button_down = False
-                        
-                        # Handle right click to clear elements
-                        elif event == cv2.EVENT_RBUTTONDOWN:
-                            removed = False
-                            if hasattr(viewer.mouse, 'drawn_rois') and viewer.mouse.drawn_rois:
-                                removed_roi = viewer.mouse.drawn_rois.pop()
-                                viewer.log(f"Removed ROI: {removed_roi}")
-                                removed = True
-                            elif hasattr(viewer.mouse, 'drawn_lines') and viewer.mouse.drawn_lines:
-                                removed_line = viewer.mouse.drawn_lines.pop()
-                                viewer.log(f"Removed line: {removed_line}")
-                                removed = True
-                            
-                            # Force display refresh after removing element
-                            if removed and hasattr(viewer, '_process_frame_and_check_quit'):
-                                viewer._process_frame_and_check_quit()
                                 
                     except Exception as e:
                         viewer.log(f"Mouse callback error: {e}")
@@ -1142,12 +1075,6 @@ class ThresholdingWindow:
                         # Apply zoom and pan transformations similar to main viewer
                         display_image = viewer._apply_zoom_pan_transform(current_image)
                         
-                        # Draw ROIs and lines if any exist
-                        if hasattr(viewer.mouse, 'drawn_rois') and viewer.mouse.drawn_rois:
-                            display_image = viewer._draw_rois_on_image(display_image, viewer.mouse.drawn_rois)
-                        
-                        if hasattr(viewer.mouse, 'drawn_lines') and viewer.mouse.drawn_lines:
-                            display_image = viewer._draw_lines_on_image(display_image, viewer.mouse.drawn_lines)
                         
                         # Display the processed image
                         cv2.imshow(viewer.config.process_window_name, display_image)
@@ -1162,13 +1089,6 @@ class ThresholdingWindow:
                     viewer.size_ratio = 1.0
                     viewer.show_area = [0, 0, viewer.config.screen_width, viewer.config.screen_height]
                     # Silent view reset
-                elif key == ord('c'):
-                    # Clear drawn elements
-                    if hasattr(viewer.mouse, 'drawn_rois'):
-                        viewer.mouse.drawn_rois.clear()
-                    if hasattr(viewer.mouse, 'drawn_lines'):
-                        viewer.mouse.drawn_lines.clear()
-                    # Silent clear elements
                     
             except Exception as e:
                 viewer.log(f"Error in process_frame: {e}")
@@ -1247,107 +1167,6 @@ class ThresholdingWindow:
                     
         return zoom_pan_transform
         
-    def _create_roi_drawing_method(self, viewer):
-        """Create ROI drawing method with coordinate transformation."""
-        def draw_rois_on_image(image, rois):
-            import cv2
-            if image is None:
-                return image
-                
-            display_image = image.copy()
-            
-            # Helper function to convert original image coordinates to display coordinates
-            def orig_to_display(x_orig, y_orig):
-                # Convert original coordinates to scaled coordinates
-                x_scaled = int(x_orig * viewer.size_ratio)
-                y_scaled = int(y_orig * viewer.size_ratio)
-                
-                # Convert scaled coordinates to display coordinates (subtract show_area offset)
-                x_display = x_scaled - viewer.show_area[0]
-                y_display = y_scaled - viewer.show_area[1]
-                
-                return x_display, y_display
-            
-            # Draw completed ROIs (stored in original image coordinates)
-            if rois:
-                for i, roi in enumerate(rois):
-                    if len(roi) >= 4:
-                        x_orig, y_orig, w_orig, h_orig = roi[:4]
-                        
-                        # Convert to display coordinates
-                        x1_display, y1_display = orig_to_display(x_orig, y_orig)
-                        x2_display, y2_display = orig_to_display(x_orig + w_orig, y_orig + h_orig)
-                        
-                        # Only draw if ROI is visible in current view
-                        if (x2_display >= 0 and y2_display >= 0 and 
-                            x1_display < display_image.shape[1] and y1_display < display_image.shape[0]):
-                            
-                            # Clamp coordinates to display image bounds
-                            x1_display = max(0, min(x1_display, display_image.shape[1]))
-                            y1_display = max(0, min(y1_display, display_image.shape[0]))
-                            x2_display = max(0, min(x2_display, display_image.shape[1]))
-                            y2_display = max(0, min(y2_display, display_image.shape[0]))
-                            
-                            # Draw rectangle in green
-                            cv2.rectangle(display_image, (int(x1_display), int(y1_display)), 
-                                        (int(x2_display), int(y2_display)), (0, 255, 0), 2)
-                            
-                            # Draw ROI label
-                            label_y = max(15, int(y1_display))
-                            cv2.putText(display_image, f"ROI {i+1}", (int(x1_display), label_y), 
-                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-            
-            # Draw ROI preview in different color if it exists (also in original coordinates)
-            if hasattr(viewer.mouse, 'roi_preview') and viewer.mouse.roi_preview:
-                preview_roi = viewer.mouse.roi_preview
-                if len(preview_roi) >= 4:
-                    x_orig, y_orig, w_orig, h_orig = preview_roi[:4]
-                    
-                    # Convert to display coordinates
-                    x1_display, y1_display = orig_to_display(x_orig, y_orig)
-                    x2_display, y2_display = orig_to_display(x_orig + w_orig, y_orig + h_orig)
-                    
-                    # Only draw if preview ROI is visible in current view
-                    if (x2_display >= 0 and y2_display >= 0 and 
-                        x1_display < display_image.shape[1] and y1_display < display_image.shape[0]):
-                        
-                        # Clamp coordinates to display image bounds
-                        x1_display = max(0, min(x1_display, display_image.shape[1]))
-                        y1_display = max(0, min(y1_display, display_image.shape[0]))
-                        x2_display = max(0, min(x2_display, display_image.shape[1]))
-                        y2_display = max(0, min(y2_display, display_image.shape[0]))
-                        
-                        # Draw preview rectangle in yellow
-                        cv2.rectangle(display_image, (int(x1_display), int(y1_display)), 
-                                    (int(x2_display), int(y2_display)), (0, 255, 255), 2)
-                        
-                        # Draw preview label
-                        label_y = max(15, int(y1_display))
-                        cv2.putText(display_image, "Preview", (int(x1_display), label_y), 
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
-                               
-            return display_image
-        return draw_rois_on_image
-        
-    def _create_line_drawing_method(self, viewer):
-        """Create line drawing method."""
-        def draw_lines_on_image(image, lines):
-            import cv2
-            if not lines or image is None:
-                return image
-                
-            display_image = image.copy()
-            for i, line in enumerate(lines):
-                if len(line) >= 4:
-                    x1, y1, x2, y2 = line[:4]
-                    # Draw line
-                    cv2.line(display_image, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 2)
-                    # Draw line label
-                    mid_x, mid_y = int((x1 + x2) / 2), int((y1 + y2) / 2)
-                    cv2.putText(display_image, f"L{i+1}", (mid_x, mid_y), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-            return display_image
-        return draw_lines_on_image
         
     def _create_custom_window_manager(self, config):
         """Create a custom window manager that only creates process and trackbar windows."""
@@ -1367,7 +1186,7 @@ class ThresholdingWindow:
                     cv2.namedWindow(self.config.process_window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO | cv2.WINDOW_GUI_EXPANDED)
                     cv2.resizeWindow(self.config.process_window_name, self.config.screen_width, self.config.screen_height)
                     
-                    # Set mouse callback for zoom/pan/drawing functionality
+                    # Set mouse callback for zoom/pan functionality
                     if mouse_callback:
                         cv2.setMouseCallback(self.config.process_window_name, mouse_callback)
                     
@@ -1982,6 +1801,14 @@ class ThresholdingWindow:
         """Update the status display with current parameters."""
         if not hasattr(self, 'status_text') or not self.status_text or not self.threshold_viewer:
             return
+        
+        # Check if widget is still valid (not destroyed)
+        try:
+            if not self.status_text.winfo_exists():
+                return
+        except tk.TclError:
+            # Widget has been destroyed
+            return
             
         # Get current parameters from threshold viewer
         params = []
@@ -2022,12 +1849,16 @@ class ThresholdingWindow:
                     max_val = viewer_params.get(f"{first_channel}_max_value", 255)
                     params.append(f"{first_channel.upper()}: T={thresh}, M={max_val}")
         
-        # Update status text
-        status_str = "\n".join(params)
-        self.status_text.config(state=tk.NORMAL)
-        self.status_text.delete(1.0, tk.END)
-        self.status_text.insert(1.0, status_str)
-        self.status_text.config(state=tk.DISABLED)
+        # Update status text with error handling
+        try:
+            status_str = "\n".join(params)
+            self.status_text.config(state=tk.NORMAL)
+            self.status_text.delete(1.0, tk.END)
+            self.status_text.insert(1.0, status_str)
+            self.status_text.config(state=tk.DISABLED)
+        except tk.TclError:
+            # Widget was destroyed while we were updating it
+            pass
 
     def _save_config(self):
         """Save current thresholding configuration to file."""
