@@ -22,7 +22,7 @@ class ImageViewer:
     """
     A flexible image viewer with interactive features.
     """
-    def __init__(self, config: ViewerConfig = None, trackbar_definitions: List[Dict[str, Any]] = None, app_debug_mode: bool = True, max_headless_iterations: int = 1):
+    def __init__(self, config: ViewerConfig = None, trackbar_definitions: List[Dict[str, Any]] = None, app_debug_mode: bool = True, max_headless_iterations: int = 1, text_window: bool = True, analysis_control_window: bool = True):
         self.config = config if config else ViewerConfig()
         
         if trackbar_definitions:
@@ -33,12 +33,17 @@ class ImageViewer:
         self.max_headless_iterations = max_headless_iterations
         self._headless_iteration_count = 0
         self._app_debug_mode = app_debug_mode
+        self._show_text_window_enabled = text_window
+        self._show_analysis_control_window_enabled = analysis_control_window
         
         self.mouse = MouseHandler()
         self.trackbar = TrackbarManager(self.config.trackbar_window_name)
         self.windows = WindowManager(self.config)
         self.analyzer = ImageAnalyzer()
-        self.analysis_window = AnalysisControlWindow(self)
+        if self._show_analysis_control_window_enabled:
+            self.analysis_window = AnalysisControlWindow(self)
+        else:
+            self.analysis_window = None
         
         self._internal_images: List[Tuple[np.ndarray, str]] = []
         self._should_continue_loop: bool = True
@@ -111,7 +116,8 @@ class ImageViewer:
             # Only call OpenCV-related functions
             self._update_show_trackbar()
             self._process_image_for_display()
-            self._show_text_window()
+            if self._show_text_window_enabled:
+                self._show_text_window()
             
             key = cv2.waitKey(1) & 0xFF
             
@@ -153,13 +159,14 @@ class ImageViewer:
         self._initialize_parameters()
 
         if self.config.enable_debug:
-            self.windows.create_windows(self._mouse_callback, self._text_mouse_callback)
+            self.windows.create_windows(self._mouse_callback, self._text_mouse_callback, self._show_text_window_enabled)
             if not self.windows.windows_created:
                 self.log("FATAL: UI Mode: ImageViewer failed to create windows.")
                 print("FATAL: UI Mode: ImageViewer failed to create windows.")
                 self._should_continue_loop = False
             else:
-                self.analysis_window.create_window()
+                if self._show_analysis_control_window_enabled and self.analysis_window:
+                    self.analysis_window.create_window()
 
         temp_images = []
         if self.user_image_processor:
@@ -550,7 +557,11 @@ class ImageViewer:
 
     def _show_text_window(self):
         if not self.config.enable_debug or not self.windows.windows_created: return
+        if not self._show_text_window_enabled: return
         try:
+            # Check if text window exists before trying to access it
+            if cv2.getWindowProperty(self.config.text_window_name, cv2.WND_PROP_VISIBLE) < 0:
+                return
             _x, _y, view_w, view_h = cv2.getWindowImageRect(self.config.text_window_name)
             view_h = max(1, view_h) 
             text_img_h, text_img_w = self.text_image.shape[:2]
@@ -617,7 +628,8 @@ class ImageViewer:
                     self.mouse.draw_polygons.append(self.mouse.current_polygon.copy())
                     self.log(f"Polygon closed with {len(self.mouse.current_polygon)} points.")
                     self.mouse.current_polygon.clear()
-                    self.analysis_window.update_selectors()
+                    if self.analysis_window:
+                        self.analysis_window.update_selectors()
                 else:
                     self.mouse.current_polygon.append((ptr_x_orig, ptr_y_orig))
                     self.log(f"Polygon point added: ({ptr_x_orig},{ptr_y_orig})")
@@ -633,7 +645,8 @@ class ImageViewer:
                         if line_length > 5:
                             self.mouse.draw_lines.append(line_coords)
                             self.log(f"Line drawn: ({self.mouse.line_start[0]},{self.mouse.line_start[1]}) to ({ptr_x_orig},{ptr_y_orig})")
-                            self.analysis_window.update_selectors()
+                            if self.analysis_window:
+                                self.analysis_window.update_selectors()
                 else:
                     rect_x = min(self.mouse.left_button_start[0], ptr_x_orig)
                     rect_y = min(self.mouse.left_button_start[1], ptr_y_orig)
@@ -642,7 +655,8 @@ class ImageViewer:
                     if rect_w > 0 and rect_h > 0:
                         self.mouse.draw_rects.append((rect_x, rect_y, rect_w, rect_h))
                         self.log(f"ROI drawn: x={rect_x}, y={rect_y}, w={rect_w}, h={rect_h}")
-                        self.analysis_window.update_selectors()
+                        if self.analysis_window:
+                            self.analysis_window.update_selectors()
             self.mouse.is_left_button_down = False
             self.mouse.left_button_start = None
             self.mouse.mouse_rect = None
@@ -654,35 +668,41 @@ class ImageViewer:
                     self.mouse.draw_polygons.append(self.mouse.current_polygon.copy())
                     self.log(f"Polygon closed with {len(self.mouse.current_polygon)} points.")
                     self.mouse.current_polygon.clear()
-                    self.analysis_window.update_selectors()
+                    if self.analysis_window:
+                        self.analysis_window.update_selectors()
             elif self.mouse.is_line_mode:
                 if self.mouse.draw_lines: 
                     removed_line = self.mouse.draw_lines.pop()
                     self.log(f"Last line removed: {removed_line}")
-                    self.analysis_window.update_selectors()
+                    if self.analysis_window:
+                        self.analysis_window.update_selectors()
                 self.mouse.current_line = None
             else:
                 if self.mouse.draw_rects: 
                     removed_rect = self.mouse.draw_rects.pop()
                     self.log(f"Last rect removed: {removed_rect}")
-                    self.analysis_window.update_selectors()
+                    if self.analysis_window:
+                        self.analysis_window.update_selectors()
         elif event == cv2.EVENT_RBUTTONDBLCLK:
             if self.mouse.is_polygon_mode:
                 self.mouse.draw_polygons.clear()
                 self.mouse.current_polygon.clear()
                 self.log("All polygons cleared.")
-                self.analysis_window.update_selectors()
+                if self.analysis_window:
+                    self.analysis_window.update_selectors()
             elif self.mouse.is_line_mode:
                 if self.mouse.draw_lines: 
                     self.mouse.draw_lines.clear()
                     self.log("All lines cleared.")
-                    self.analysis_window.update_selectors()
+                    if self.analysis_window:
+                        self.analysis_window.update_selectors()
                 self.mouse.current_line = None
             else:
                 if self.mouse.draw_rects: 
                     self.mouse.draw_rects.clear()
                     self.log("All rects cleared.")
-                    self.analysis_window.update_selectors()
+                    if self.analysis_window:
+                        self.analysis_window.update_selectors()
         elif event == cv2.EVENT_MBUTTONDOWN:
             self.mouse.is_middle_button_down = True
             self.mouse.middle_button_start = (x_view, y_view)
@@ -726,7 +746,7 @@ class ImageViewer:
     def _process_tk_events(self):
         """Process Tkinter events safely in single-threaded architecture."""
         try:
-            if TKINTER_AVAILABLE and hasattr(self, 'analysis_window') and self.analysis_window.root:
+            if TKINTER_AVAILABLE and hasattr(self, 'analysis_window') and self.analysis_window and self.analysis_window.root:
                 # Process tkinter events without blocking
                 self.analysis_window.root.update_idletasks()
                 self.analysis_window.root.update()
@@ -746,7 +766,8 @@ class ImageViewer:
 
     def cleanup_viewer(self):
         self.windows.destroy_all_windows()
-        self.analysis_window.destroy_window()
+        if self.analysis_window:
+            self.analysis_window.destroy_window()
         self.analyzer.close_all_plots()
         self._internal_images.clear()
         self._cached_scaled_image = None
@@ -780,7 +801,7 @@ class ImageViewer:
             self._internal_images = [(np.zeros((100,100,1), dtype=np.uint8), "Input Error")]
 
         if not self.windows.windows_created:
-            self.windows.create_windows(self._mouse_callback, self._text_mouse_callback)
+            self.windows.create_windows(self._mouse_callback, self._text_mouse_callback, self._show_text_window_enabled)
             if not self.windows.windows_created:
                 self.log("FATAL: Failed to create OpenCV windows for internal loop.")
                 self.config.enable_debug = original_debug_state

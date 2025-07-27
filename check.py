@@ -21,6 +21,17 @@ IMG_HEIGHT, IMG_WIDTH = 600, 800
 
 # Initialize the viewer with a try-except block to handle potential GIL issues
 try:
+    # Examples of window control:
+    # Both windows enabled (default): 
+    # viewer = ImageViewer(config, trackbar_definitions, APP_DEBUG_MODE, max_headless_iterations=1)
+    
+    # Text window disabled: 
+    # viewer = ImageViewer(config, trackbar_definitions, APP_DEBUG_MODE, max_headless_iterations=1, text_window=False)
+    
+    # Analysis control window disabled: 
+    # viewer = ImageViewer(config, trackbar_definitions, APP_DEBUG_MODE, max_headless_iterations=1, analysis_control_window=False)
+    
+    # Both windows disabled: 
     viewer = ImageViewer(config, trackbar_definitions, APP_DEBUG_MODE, max_headless_iterations=1)
 except Exception as e:
     print(f"Error initializing viewer: {e}")

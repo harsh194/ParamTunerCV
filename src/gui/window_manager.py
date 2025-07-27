@@ -9,7 +9,7 @@ class WindowManager:
         self.config = config
         self.windows_created = False
 
-    def create_windows(self, mouse_callback: Callable, text_mouse_callback: Callable):
+    def create_windows(self, mouse_callback: Callable, text_mouse_callback: Callable, create_text_window: bool = True):
         if self.windows_created: return
         if not self.config.enable_debug: # Don't create windows if debug is off
             # print("WindowManager: Debug mode is off, not creating windows.") # Optional log
@@ -20,9 +20,10 @@ class WindowManager:
             cv2.resizeWindow(self.config.process_window_name, self.config.screen_width, self.config.screen_height)
             cv2.setMouseCallback(self.config.process_window_name, mouse_callback)
 
-            cv2.namedWindow(self.config.text_window_name, cv2.WINDOW_AUTOSIZE)
-            cv2.resizeWindow(self.config.text_window_name, self.config.text_window_width, self.config.text_window_height)
-            cv2.setMouseCallback(self.config.text_window_name, text_mouse_callback)
+            if create_text_window:
+                cv2.namedWindow(self.config.text_window_name, cv2.WINDOW_AUTOSIZE)
+                cv2.resizeWindow(self.config.text_window_name, self.config.text_window_width, self.config.text_window_height)
+                cv2.setMouseCallback(self.config.text_window_name, text_mouse_callback)
 
             if self.config.trackbar: # Only create trackbar window if trackbar defs exist
                 cv2.namedWindow(self.config.trackbar_window_name, cv2.WINDOW_AUTOSIZE)
