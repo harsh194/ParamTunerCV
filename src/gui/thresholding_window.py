@@ -169,22 +169,16 @@ class ThresholdingWindow:
     
     def _create_colorspace_selection_unified(self):
         """Create colorspace selection section for unified window."""
-        colorspace_frame = ttk.LabelFrame(self.content_frame, text="Color Space Selection", 
+        colorspace_frame = ttk.LabelFrame(self.content_frame, text="", 
                                         style=self.theme_manager.get_frame_style())
         colorspace_frame.pack(fill='x', padx=10, pady=5)
         
         # Available color spaces
         color_spaces = ["BGR", "HSV", "HLS", "Lab", "Luv", "YCrCb", "XYZ", "Grayscale"]
         
-        # Info label
-        info_text = "Available methods: Range, Simple, Otsu, Triangle, Adaptive\nAll color spaces supported with automatic conversion"
-        info_label = ttk.Label(colorspace_frame, text=info_text, font=("Arial", 8), 
-                              style=self.theme_manager.get_label_style())
-        info_label.pack(pady=5)
-        
-        # Colorspace selection
+        # Colorspace selection (removed info text)
         selection_frame = ttk.Frame(colorspace_frame, style=self.theme_manager.get_frame_style())
-        selection_frame.pack(fill='x', padx=10, pady=5)
+        selection_frame.pack(fill='x', padx=10, pady=10)
         
         ttk.Label(selection_frame, text="Color Space:", 
                  style=self.theme_manager.get_label_style()).pack(side=tk.LEFT, padx=(0, 10))
@@ -264,6 +258,9 @@ class ThresholdingWindow:
         # Create thresholding controls for the new colorspace
         self._create_thresholding_controls_unified()
         
+        # Ensure the initial method selection is visually highlighted
+        self._update_method_selection_style()
+        
     def _create_or_update_threshold_viewer(self):
         """Create or update the threshold viewer for the current colorspace."""
         # Clean up existing threshold viewer if it exists
@@ -287,20 +284,53 @@ class ThresholdingWindow:
                                     style=self.theme_manager.get_frame_style())
         method_frame.pack(fill='x', pady=5)
         
+        # Store method buttons for styling
+        self.method_buttons = {}
+        
         if self.color_space == "Grayscale":
             # Grayscale methods
             self.threshold_method_var = tk.StringVar(value="Simple")
             methods = ["Simple", "Adaptive", "Otsu", "Triangle"]
-            for method in methods:
-                ttk.Radiobutton(method_frame, text=method, variable=self.threshold_method_var, 
-                               value=method, command=self._on_method_change_unified).pack(anchor="w", padx=5)
         else:
             # Color space methods
             self.threshold_method_var = tk.StringVar(value="Range")
             methods = ["Range", "Simple", "Otsu", "Triangle", "Adaptive"]
-            for method in methods:
-                ttk.Radiobutton(method_frame, text=method, variable=self.threshold_method_var, 
-                               value=method, command=self._on_method_change_unified).pack(anchor="w", padx=5)
+        
+        # Create custom square method buttons
+        for method in methods:
+            method_container = ttk.Frame(method_frame, style=self.theme_manager.get_frame_style())
+            method_container.pack(fill='x', padx=5, pady=2)
+            
+            # Create square checkbox using Unicode character
+            checkbox_label = ttk.Label(method_container, text="☐", font=("Arial", 12))
+            checkbox_label.pack(side=tk.LEFT, padx=(5, 8))
+            
+            # Create method text label
+            method_label = ttk.Label(method_container, text=method, font=("Arial", 10))
+            method_label.pack(side=tk.LEFT)
+            
+            # Store references for styling updates
+            self.method_buttons[method] = {
+                'checkbox': checkbox_label,
+                'text': method_label,
+                'container': method_container
+            }
+            
+            # Bind click events to both checkbox and text
+            def make_click_handler(method_name):
+                def on_click(event):
+                    self.threshold_method_var.set(method_name)
+                    self._update_method_selection_style()
+                    self._on_method_change_unified()
+                return on_click
+            
+            click_handler = make_click_handler(method)
+            checkbox_label.bind("<Button-1>", click_handler)
+            method_label.bind("<Button-1>", click_handler)
+            method_container.bind("<Button-1>", click_handler)
+        
+        # Set initial selection style
+        self._update_method_selection_style()
         
         # Threshold type selection
         type_frame = ttk.LabelFrame(self.controls_frame, text="Threshold Type", 
@@ -352,12 +382,37 @@ class ThresholdingWindow:
         # Update status display
         self._update_status_display()
     
+    def _update_method_selection_style(self):
+        """Update the visual style of method selection buttons."""
+        if not hasattr(self, 'method_buttons'):
+            return
+            
+        selected_method = self.threshold_method_var.get()
+        
+        # Get theme colors
+        default_fg = self.theme_manager.theme.get('fg', '#ffffff')
+        green_color = "#00bb00"  # Bright green that works on both dark and light backgrounds
+        
+        for method, components in self.method_buttons.items():
+            checkbox = components['checkbox']
+            text_label = components['text']
+            
+            if method == selected_method:
+                # Selected: filled square checkbox and green text
+                checkbox.config(text="☑", foreground=green_color)  # Green checkbox
+                text_label.config(foreground=green_color)  # Green text
+            else:
+                # Unselected: empty square checkbox and default text color
+                checkbox.config(text="☐", foreground=default_fg)
+                text_label.config(foreground=default_fg)
+    
     def _on_method_change_unified(self):
         """Handle threshold method changes in unified window."""
         if not self.threshold_method_var:
             return
         
         method = self.threshold_method_var.get()
+        self._update_method_selection_style()  # Update visual selection
         self._switch_to_method(method)
         self._update_ui_for_method_unified(method)
         self.update_threshold()
