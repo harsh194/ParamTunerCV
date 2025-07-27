@@ -100,78 +100,88 @@ class ThresholdingWindow:
         # Create tkinter window
         self.root = tk.Toplevel()
         self.root.title("Thresholding Controls")
-        self.root.geometry("500x800")
+        # Start with reasonable initial size, will be adjusted later
+        self.root.geometry("480x300")
         
         # Apply theme to match analysis control window
         self.theme_manager.configure_theme(self.root)
         
-        # Create main scrollable frame
-        self._create_scrollable_frame()
+        # Create main content frame (simpler, no scrolling initially)
+        self.main_container = ttk.Frame(self.root, style=self.theme_manager.get_frame_style())
+        self.main_container.pack(fill='both', expand=True, padx=10, pady=10)
         
         # Create colorspace selection section at the top
         self._create_colorspace_selection_unified()
         
         # Create separator
-        separator = ttk.Separator(self.content_frame, orient='horizontal')
-        separator.pack(fill='x', padx=10, pady=10)
+        separator = ttk.Separator(self.main_container, orient='horizontal')
+        separator.pack(fill='x', padx=5, pady=10)
         
         # Create thresholding controls section (initially empty, will be populated when colorspace is selected)
-        self.controls_frame = ttk.Frame(self.content_frame, style=self.theme_manager.get_frame_style())
-        self.controls_frame.pack(fill='both', expand=True, padx=10, pady=5)
+        self.controls_frame = ttk.Frame(self.main_container, style=self.theme_manager.get_frame_style())
+        self.controls_frame.pack(fill='both', expand=True, padx=5, pady=5)
         
         # Show initial message
         self.status_label = ttk.Label(self.controls_frame, 
                                      text="👆 Please select a color space above to see thresholding parameters",
                                      style=self.theme_manager.get_label_style())
         self.status_label.pack(pady=20)
+        
+        # Set minimum size and allow window to resize
+        self.root.minsize(400, 200)
+        
+        # Set max size constraints to prevent oversized windows
+        screen_height = self.root.winfo_screenheight()
+        max_height = int(screen_height * 0.8)  # Max 80% of screen height
+        self.root.maxsize(600, max_height)
+        
+        # Initial size adjustment to fit initial content
+        self.root.update_idletasks()
+        self._adjust_window_size()
 
         self.window_created = True
         self.viewer.log("Unified thresholding window created.")
         self.root.protocol("WM_DELETE_WINDOW", self.destroy_window)
     
-    def _create_scrollable_frame(self):
-        """Create a scrollable frame for the window content."""
-        # Create main container
-        main_container = ttk.Frame(self.root)
-        main_container.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        # Create canvas and scrollbar
-        self.canvas = tk.Canvas(main_container, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=self.canvas.yview)
-        
-        # Create scrollable content frame
-        self.content_frame = ttk.Frame(self.canvas, style=self.theme_manager.get_frame_style())
-        
-        # Configure scrolling
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        canvas_frame = self.canvas.create_window((0, 0), window=self.content_frame, anchor="nw")
-        
-        # Pack canvas and scrollbar
-        self.canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Update scroll region when content changes
-        def configure_scroll_region(event):
-            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        
-        def configure_canvas_width(event):
-            canvas_width = event.width
-            self.canvas.itemconfig(canvas_frame, width=canvas_width)
-        
-        self.content_frame.bind("<Configure>", configure_scroll_region)
-        self.canvas.bind("<Configure>", configure_canvas_width)
-        
-        # Mouse wheel scrolling
-        def on_mousewheel(event):
-            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        
-        self.canvas.bind_all("<MouseWheel>", on_mousewheel)
+    def _adjust_window_size(self):
+        """Adjust window size to fit content."""
+        if not self.root:
+            return
+            
+        try:
+            # Update all pending geometry changes
+            self.root.update_idletasks()
+            
+            # Get the required size for the content
+            req_width = self.main_container.winfo_reqwidth() + 40  # Add padding
+            req_height = self.main_container.winfo_reqheight() + 40  # Add padding
+            
+            # Set reasonable bounds
+            min_width = 400
+            max_width = 600
+            min_height = 200
+            
+            # Apply bounds
+            final_width = max(min_width, min(req_width, max_width))
+            final_height = max(min_height, req_height)
+            
+            # Get screen dimensions for max height
+            screen_height = self.root.winfo_screenheight()
+            max_height = int(screen_height * 0.8)
+            final_height = min(final_height, max_height)
+            
+            # Set the new geometry
+            self.root.geometry(f"{final_width}x{final_height}")
+            
+        except Exception as e:
+            self.viewer.log(f"Error adjusting window size: {e}")
+
     
     def _create_colorspace_selection_unified(self):
         """Create colorspace selection section for unified window."""
-        colorspace_frame = ttk.LabelFrame(self.content_frame, text="", 
+        colorspace_frame = ttk.LabelFrame(self.main_container, text="", 
                                         style=self.theme_manager.get_frame_style())
-        colorspace_frame.pack(fill='x', padx=10, pady=5)
+        colorspace_frame.pack(fill='x', padx=5, pady=5)
         
         # Available color spaces
         color_spaces = ["BGR", "HSV", "HLS", "Lab", "Luv", "YCrCb", "XYZ", "Grayscale"]
@@ -260,6 +270,9 @@ class ThresholdingWindow:
         
         # Ensure the initial method selection is visually highlighted
         self._update_method_selection_style()
+        
+        # Adjust window size to fit content (with small delay)
+        self.root.after(100, self._adjust_window_size)
         
     def _create_or_update_threshold_viewer(self):
         """Create or update the threshold viewer for the current colorspace."""
@@ -361,7 +374,7 @@ class ThresholdingWindow:
                                     style=self.theme_manager.get_frame_style())
         status_frame.pack(fill='x', pady=5)
         
-        self.status_text = tk.Text(status_frame, height=4, width=40, font=("Consolas", 8))
+        self.status_text = tk.Text(status_frame, height=3, width=40, font=("Consolas", 8))
         self.status_text.pack(padx=5, pady=5, fill="x")
         self.status_text.config(state=tk.DISABLED)
         
@@ -416,6 +429,9 @@ class ThresholdingWindow:
         self._switch_to_method(method)
         self._update_ui_for_method_unified(method)
         self.update_threshold()
+        
+        # Adjust window size for method-specific controls (with small delay)
+        self.root.after(50, self._adjust_window_size)
     
     def _on_threshold_type_change_unified(self, event=None):
         """Handle threshold type changes in unified window."""
