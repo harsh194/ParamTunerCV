@@ -719,6 +719,9 @@ class ThresholdingWindow:
         threshold_config.screen_width = 800
         threshold_config.screen_height = 600
         threshold_config.enable_debug = True
+        # # Set trackbar window size for better parameter name visibility
+        # threshold_config.trackbar_window_width = 600
+        # threshold_config.trackbar_window_height = 400
         
         # Get initial trackbar definitions using the same method as switching
         initial_method = "Simple" if self.color_space == "Grayscale" else "Range"
@@ -970,7 +973,7 @@ class ThresholdingWindow:
                             viewer.show_area[0] = int(ptr_x_orig * viewer.size_ratio - x_view)
                             viewer.show_area[1] = int(ptr_y_orig * viewer.size_ratio - y_view)
                             
-                            viewer.log(f"Zoom: {viewer.size_ratio:.2f}x at ({ptr_x_orig},{ptr_y_orig})")
+                            # Silent zoom - no need to log zoom changes
                             
                             # Force display refresh after zoom
                             if hasattr(viewer, '_process_frame_and_check_quit'):
@@ -1158,14 +1161,14 @@ class ThresholdingWindow:
                     # Reset zoom and pan
                     viewer.size_ratio = 1.0
                     viewer.show_area = [0, 0, viewer.config.screen_width, viewer.config.screen_height]
-                    viewer.log("View reset")
+                    # Silent view reset
                 elif key == ord('c'):
                     # Clear drawn elements
                     if hasattr(viewer.mouse, 'drawn_rois'):
                         viewer.mouse.drawn_rois.clear()
                     if hasattr(viewer.mouse, 'drawn_lines'):
                         viewer.mouse.drawn_lines.clear()
-                    viewer.log("Cleared drawn elements")
+                    # Silent clear elements
                     
             except Exception as e:
                 viewer.log(f"Error in process_frame: {e}")
@@ -1374,7 +1377,7 @@ class ThresholdingWindow:
                         if hasattr(self.config, 'trackbar_window_width') and hasattr(self.config, 'trackbar_window_height'):
                             cv2.resizeWindow(self.config.trackbar_window_name, self.config.trackbar_window_width, self.config.trackbar_window_height)
                         else:
-                            cv2.resizeWindow(self.config.trackbar_window_name, 400, 300)  # Default size
+                            cv2.resizeWindow(self.config.trackbar_window_name, 600, 400)  # Wider for long parameter names
                     
                     self.windows_created = True
                     print(f"[Threshold Windows] Created process window: {self.config.process_window_name}")
@@ -1417,9 +1420,8 @@ class ThresholdingWindow:
         """Get initial trackbar definitions for grayscale."""
         # Create lambdas to avoid method reference issues
         return [
-            make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=lambda v: self._on_threshold_type_change(v)),
-            make_trackbar("Threshold", "threshold", 255, 127, custom_callback=lambda v: self._on_param_change(v)),
-            make_trackbar("Max Value", "max_value", 255, 255, custom_callback=lambda v: self._on_param_change(v))
+            make_trackbar("Thresh", "threshold", 255, 127, custom_callback=lambda v: self._on_param_change(v)),
+            make_trackbar("Max", "max_value", 255, 255, custom_callback=lambda v: self._on_param_change(v))
         ]
         
     def _get_initial_color_trackbars(self):
@@ -1602,23 +1604,17 @@ class ThresholdingWindow:
     
     def _define_grayscale_trackbars(self):
         """Define trackbar configurations for grayscale thresholding methods."""
-        # Threshold Type trackbar (always shown)
-        type_config = make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=lambda v: self._on_threshold_type_change(v))
-        
         # Common trackbars for Simple/Otsu/Triangle methods
         common_configs = [
-            type_config,
-            make_trackbar("Threshold", "threshold", 255, 127, custom_callback=lambda v: self.update_threshold(v)),
-            make_trackbar("Max Value", "max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v))
+            make_trackbar("Thresh", "threshold", 255, 127, custom_callback=lambda v: self.update_threshold(v)),
+            make_trackbar("Max", "max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v))
         ]
         
-        # Adaptive method trackbars
+        # Adaptive method trackbars (no threshold type or adaptive method - controlled by UI)
         adaptive_configs = [
-            make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=lambda v: self._on_threshold_type_change(v)),
-            make_trackbar("Block Size (must be odd)", "block_size", 99, 11, callback="odd", custom_callback=lambda v: self.update_threshold(v)),
-            make_trackbar("C Constant (subtract from mean)", "c_constant", 50, 2, custom_callback=lambda v: self.update_threshold(v)),
-            make_trackbar("Max Value", "max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v)),
-            make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=lambda v: self._on_adaptive_method_change(v))
+            make_trackbar("Block Size", "block_size", 99, 11, callback="odd", custom_callback=lambda v: self.update_threshold(v)),
+            make_trackbar("C Constant", "c_constant", 50, 2, custom_callback=lambda v: self.update_threshold(v)),
+            make_trackbar("Max", "max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v))
         ]
         
         # Organize trackbars by method
@@ -1639,29 +1635,22 @@ class ThresholdingWindow:
                 make_trackbar(f"{channel} Max", f"{channel.lower()}_max", max_val, max_val, custom_callback=lambda v: self.update_threshold(v))
             ])
         
-        # Advanced thresholding trackbars (threshold type + per channel parameters)
-        type_config = make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=lambda v: self._on_threshold_type_change(v))
-        
-        advanced_configs = [type_config]
+        # Advanced thresholding trackbars (per channel parameters only - no threshold type)
+        advanced_configs = []
         for channel in ranges.keys():
             channel_lower = channel.lower()
             advanced_configs.extend([
-                make_trackbar(f"{channel} Threshold", f"{channel_lower}_threshold", 255, 127, custom_callback=lambda v: self.update_threshold(v)),
-                make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v))
+                make_trackbar(f"{channel} Thresh", f"{channel_lower}_threshold", 255, 127, custom_callback=lambda v: self.update_threshold(v)),
+                make_trackbar(f"{channel} Max", f"{channel_lower}_max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v))
             ])
         
-        # Adaptive thresholding trackbars (limited threshold type + adaptive parameters)
-        adaptive_type_config = make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=lambda v: self._on_threshold_type_change(v))
-        adaptive_configs = [
-            adaptive_type_config,
-            make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=lambda v: self._on_adaptive_method_change(v))
-        ]
-        
+        # Adaptive thresholding trackbars (adaptive parameters only - no threshold type or adaptive method)
+        adaptive_configs = []
         for channel in ranges.keys():
             channel_lower = channel.lower()
             adaptive_configs.extend([
-                make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v)),
-                make_trackbar(f"{channel} Block Size (odd)", f"{channel_lower}_block_size", 99, 11, callback="odd", custom_callback=lambda v: self.update_threshold(v)),
+                make_trackbar(f"{channel} Max", f"{channel_lower}_max_value", 255, 255, custom_callback=lambda v: self.update_threshold(v)),
+                make_trackbar(f"{channel} Block Size", f"{channel_lower}_block_size", 99, 11, callback="odd", custom_callback=lambda v: self.update_threshold(v)),
                 make_trackbar(f"{channel} C Constant", f"{channel_lower}_c_constant", 50, 2, custom_callback=lambda v: self.update_threshold(v))
             ])
         
@@ -1741,17 +1730,14 @@ class ThresholdingWindow:
         
         if method == "Simple" or method == "Otsu" or method == "Triangle":
             return [
-                make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=safe_threshold_type_callback),
-                make_trackbar("Threshold", "threshold", 255, 127, custom_callback=safe_param_callback),
-                make_trackbar("Max Value", "max_value", 255, 255, custom_callback=safe_param_callback)
+                make_trackbar("Thresh", "threshold", 255, 127, custom_callback=safe_param_callback),
+                make_trackbar("Max", "max_value", 255, 255, custom_callback=safe_param_callback)
             ]
         elif method == "Adaptive":
             return [
-                make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=safe_threshold_type_callback),
-                make_trackbar("Block Size (must be odd)", "block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
-                make_trackbar("C Constant (subtract from mean)", "c_constant", 50, 2, custom_callback=safe_param_callback),
-                make_trackbar("Max Value", "max_value", 255, 255, custom_callback=safe_param_callback),
-                make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=safe_adaptive_callback)
+                make_trackbar("Block Size", "block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
+                make_trackbar("C Constant", "c_constant", 50, 2, custom_callback=safe_param_callback),
+                make_trackbar("Max", "max_value", 255, 255, custom_callback=safe_param_callback)
             ]
         else:
             return []
@@ -1789,27 +1775,22 @@ class ThresholdingWindow:
             return trackbars
             
         elif method == "Simple" or method == "Otsu" or method == "Triangle":
-            trackbars = [
-                make_trackbar("Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]", "threshold_type_idx", 4, 0, custom_callback=safe_threshold_type_callback)
-            ]
+            trackbars = []
             for channel in ranges.keys():
                 channel_lower = channel.lower()
                 trackbars.extend([
-                    make_trackbar(f"{channel} Threshold", f"{channel_lower}_threshold", 255, 127, custom_callback=safe_param_callback),
-                    make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=safe_param_callback)
+                    make_trackbar(f"{channel} Thresh", f"{channel_lower}_threshold", 255, 127, custom_callback=safe_param_callback),
+                    make_trackbar(f"{channel} Max", f"{channel_lower}_max_value", 255, 255, custom_callback=safe_param_callback)
                 ])
             return trackbars
             
         elif method == "Adaptive":
-            trackbars = [
-                make_trackbar("Thresh Type [0=BIN,1=INV]", "threshold_type_idx", 1, 0, custom_callback=safe_threshold_type_callback),
-                make_trackbar("Adaptive [0=MEAN,1=GAUSSIAN]", "adaptive_method_idx", 1, 0, custom_callback=safe_adaptive_callback)
-            ]
+            trackbars = []
             for channel in ranges.keys():
                 channel_lower = channel.lower()
                 trackbars.extend([
-                    make_trackbar(f"{channel} Max Value", f"{channel_lower}_max_value", 255, 255, custom_callback=safe_param_callback),
-                    make_trackbar(f"{channel} Block Size (odd)", f"{channel_lower}_block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
+                    make_trackbar(f"{channel} Max", f"{channel_lower}_max_value", 255, 255, custom_callback=safe_param_callback),
+                    make_trackbar(f"{channel} Block Size", f"{channel_lower}_block_size", 99, 11, callback="odd", custom_callback=safe_param_callback),
                     make_trackbar(f"{channel} C Constant", f"{channel_lower}_c_constant", 50, 2, custom_callback=safe_param_callback)
                 ])
             return trackbars
@@ -1891,20 +1872,8 @@ class ThresholdingWindow:
         except ValueError:
             type_index = 0  # Default to BINARY if not found
         
-        # Update trackbar to match dropdown selection
-        # Try both possible trackbar names (full and adaptive limited)
-        trackbar_names = [
-            "Thresh Type [0=BIN,1=INV,2=TRU,3=TZ,4=TZI]",
-            "Thresh Type [0=BIN,1=INV]"
-        ]
-        
-        trackbar_window = self.threshold_viewer.config.trackbar_window_name
-        for trackbar_name in trackbar_names:
-            try:
-                cv2.setTrackbarPos(trackbar_name, trackbar_window, type_index)
-                break  # Success, no need to try other names
-            except:
-                continue  # Try next trackbar name
+        # No need to update trackbar since Thresh Type is now only in UI
+        # Threshold type is controlled by UI combobox only
             
         # Update internal parameter
         self.threshold_viewer.trackbar.parameters["threshold_type_idx"] = type_index
@@ -1927,13 +1896,8 @@ class ThresholdingWindow:
         except ValueError:
             method_index = 0  # Default to MEAN_C if not found
         
-        # Update trackbar to match dropdown selection
-        try:
-            trackbar_window = self.threshold_viewer.config.trackbar_window_name
-            cv2.setTrackbarPos("Adaptive [0=MEAN,1=GAUSSIAN]", trackbar_window, method_index)
-        except:
-            # Trackbar might not exist yet
-            pass
+        # No need to update trackbar since Adaptive Method is now only in UI
+        # Adaptive method is controlled by UI combobox only
             
         # Update internal parameter
         self.threshold_viewer.trackbar.parameters["adaptive_method_idx"] = method_index
