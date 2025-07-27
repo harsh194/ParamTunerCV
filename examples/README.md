@@ -1,6 +1,6 @@
 # Parameter Library Examples
 
-This folder contains 4 essential examples that cover all the core functionality you need to know to use the Parameter library effectively.
+This folder contains 5 essential examples that cover all the core functionality you need to know to use the Parameter library effectively.
 
 ## 🚀 Quick Start
 
@@ -10,6 +10,7 @@ python examples/01_basic_usage.py
 python examples/02_window_control.py
 python examples/03_trackbar_definitions.py
 python examples/04_app_debug_mode.py
+python examples/05_viewer_factory_usage.py
 ```
 
 ## 📋 Prerequisites
@@ -101,6 +102,29 @@ viewer = ImageViewer(config, trackbars,
 # Workflow: Develop with True → Deploy with False
 ```
 
+### 5. `05_viewer_factory_usage.py` - Pre-configured Viewer Functions
+**What it shows**: How to use factory functions for common computer vision tasks
+- Pre-built viewers for filtering, edge detection, morphology, color filtering, etc.
+- Ready-to-use trackbar configurations for specific operations
+- Examples of real image processing workflows
+- Interactive demonstration of different computer vision techniques
+
+**Key concepts**:
+```python
+
+# Use pre-configured viewers
+viewer = create_viewer_for_canny()  # Pre-configured for edge detection
+viewer = create_viewer_for_filtering()  # Pre-configured for image filtering
+viewer = create_viewer_for_morphology()  # Pre-configured for morphological ops
+
+# All viewers follow the same usage pattern
+while viewer.should_loop_continue():
+    params = viewer.trackbar.parameters  # Access pre-defined parameters
+    # Apply processing using the specific parameters for that viewer type
+    viewer.display_images = [(processed_image, "Result")]
+viewer.cleanup_viewer()
+```
+
 ## 🎯 Essential Patterns
 
 ### Basic Viewer Setup
@@ -169,6 +193,8 @@ viewer = ImageViewer(config, trackbars, enable_ui=False, max_headless_iterations
 **Production processing**: Use example 4 with APP_DEBUG_MODE=False 
 **Server deployment**: Use example 4 with APP_DEBUG_MODE=False (no GUI needed)
 **Real-time processing**: Use examples 1 and 3 with live camera feed
+**Computer vision tasks**: Use example 5 for pre-configured viewers (edge detection, filtering, morphology, etc.)
+**Rapid prototyping**: Use example 5 to quickly test different CV algorithms
 
 ## 💡 Tips
 
@@ -190,4 +216,4 @@ viewer = ImageViewer(config, trackbars, enable_ui=False, max_headless_iterations
 
 ---
 
-These 4 examples contain everything you need to use the Parameter library effectively. Start with `01_basic_usage.py` and work through them in order!
+These 5 examples contain everything you need to use the Parameter library effectively. Start with `01_basic_usage.py` and work through them in order!
