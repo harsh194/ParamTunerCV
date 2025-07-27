@@ -6,7 +6,9 @@
       "Bash(ls:*)",
       "Bash(pip install:*)",
       "Bash(rm:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(conda list:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }

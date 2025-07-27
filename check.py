@@ -33,7 +33,8 @@ try:
     
     # Both windows disabled: 
     # viewer = ImageViewer(config, trackbar_definitions, APP_DEBUG_MODE, max_headless_iterations=1)
-    viewer = ImageViewer(config, trackbar_definitions)
+    viewer = ImageViewer(config, trackbar_definitions, APP_DEBUG_MODE)
+    # viewer = ImageViewer(config, trackbar_definitions)
 except Exception as e:
     print(f"Error initializing viewer: {e}")
     import sys
@@ -51,6 +52,7 @@ while viewer.should_loop_continue():
 
     gray_image = cv2.cvtColor(base_color_image, cv2.COLOR_BGR2GRAY)
     viewer.log(f"shape of grayscale image - {gray_image.shape}")
+    # print(f"shape of grayscale image - {gray_image.shape}")
     gauss_image = gray_image.copy()
     if current_gaussian_size > 0:
         try:
@@ -59,6 +61,7 @@ while viewer.should_loop_continue():
             print(f"GaussianBlur Error: {e}. Size: {current_gaussian_size}")
 
     _, thresh_image = cv2.threshold(gauss_image, current_thresh, 255, cv2.THRESH_BINARY)
+    
 
     viewer.display_images = [
         (base_color_image, "Color"),
