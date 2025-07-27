@@ -86,7 +86,6 @@ class ThresholdingWindow:
         self._create_buttons_section()
 
         self.window_created = True
-        self.viewer.log(f"Thresholding window for {self.color_space} created.")
         self.root.protocol("WM_DELETE_WINDOW", self.destroy_window)
         
         # Create trackbars after UI is set up
@@ -140,7 +139,6 @@ class ThresholdingWindow:
         self._adjust_window_size()
 
         self.window_created = True
-        self.viewer.log("Unified thresholding window created.")
         self.root.protocol("WM_DELETE_WINDOW", self.destroy_window)
     
     def _adjust_window_size(self):
@@ -174,7 +172,7 @@ class ThresholdingWindow:
             self.root.geometry(f"{final_width}x{final_height}")
             
         except Exception as e:
-            self.viewer.log(f"Error adjusting window size: {e}")
+            print(f"Error adjusting window size: {e}")
 
     
     def _create_colorspace_selection_unified(self):
@@ -255,7 +253,7 @@ class ThresholdingWindow:
         
         # Update colorspace
         self.color_space = new_colorspace
-        self.viewer.log(f"Changed colorspace to: {new_colorspace}")
+        pass
         
         # Clear the controls frame
         for widget in self.controls_frame.winfo_children():
@@ -467,7 +465,7 @@ class ThresholdingWindow:
         
         # Mark as created but without tkinter window
         self.window_created = True
-        self.viewer.log(f"Simple thresholding viewer for {self.color_space} created.")
+        pass
         
         # Create trackbars for the selected colorspace
         self.create_trackbars()
@@ -541,7 +539,7 @@ class ThresholdingWindow:
         # If colorspace actually changed, recreate the window content
         if new_colorspace != self.color_space:
             self.color_space = new_colorspace
-            self.viewer.log(f"Changed colorspace to: {new_colorspace}")
+            pass
             
             # Update window title
             self.root.title(f"Thresholding Controls - {self.color_space}")
@@ -783,7 +781,6 @@ class ThresholdingWindow:
         
         # Mock text window attributes without creating actual window
         viewer.text_image = np.full((getattr(config, 'text_window_height', 200), getattr(config, 'text_window_width', 400), 3), 255, dtype=np.uint8)
-        viewer.log_texts = []
         
         # Initialize components 
         viewer.mouse = MouseHandler()
@@ -844,7 +841,7 @@ class ThresholdingWindow:
                 try:
                     viewer._process_frame_and_check_quit()
                 except Exception as e:
-                    viewer.log(f"Error in display update: {e}")
+                    print(f"Error in display update: {e}")
         
         # Create display_images as simple methods instead of property
         def get_display_images():
@@ -873,7 +870,7 @@ class ThresholdingWindow:
                 try:
                     viewer._process_frame_and_check_quit()
                 except Exception as e:
-                    viewer.log(f"Error in display update: {e}")
+                    print(f"Error in display update: {e}")
         
         # Add methods to viewer
         viewer.get_display_images = get_display_images
@@ -894,18 +891,15 @@ class ThresholdingWindow:
         return viewer
         
     def _create_log_method(self, viewer):
-        """Create a log method for the minimal viewer."""
+        """Create a no-op log method for the minimal viewer."""
         def log_method(message):
-            viewer.log_texts.append(message)
-            if len(viewer.log_texts) > 100:  # Keep only last 100 messages
-                viewer.log_texts = viewer.log_texts[-100:]
-            print(f"[Threshold Viewer] {message}")  # Also print to console
+            pass  # No logging for thresholding viewer
         return log_method
         
     def _create_setup_viewer_method(self, viewer):
         """Create a setup_viewer method for the minimal viewer."""
         def setup_viewer_method(initial_images_for_first_frame=None, image_processor_func=None):
-            viewer.log("Setting up minimal threshold viewer...")
+            pass
             viewer._should_continue_loop = True
             viewer.user_image_processor = image_processor_func
             
@@ -1003,7 +997,7 @@ class ThresholdingWindow:
                         
                                 
                     except Exception as e:
-                        viewer.log(f"Mouse callback error: {e}")
+                        print(f"Mouse callback error: {e}")
                         import traceback
                         traceback.print_exc()
                 
@@ -1012,41 +1006,41 @@ class ThresholdingWindow:
                 
                 # Create trackbars only if windows were created successfully
                 if viewer.windows.windows_created:
-                    viewer.log(f"Creating {len(viewer.config.trackbar)} trackbars...")
+                    pass
                     for trackbar_config in viewer.config.trackbar:
                         try:
                             viewer.trackbar.create_trackbar(trackbar_config, viewer)
                         except Exception as e:
-                            viewer.log(f"Error creating trackbar {trackbar_config.get('name', 'Unknown')}: {e}")
+                            print(f"Error creating trackbar {trackbar_config.get('name', 'Unknown')}: {e}")
                 else:
-                    viewer.log("Failed to create windows - disabling viewer")
+                    pass
                     viewer._should_continue_loop = False
                     return
             
             # Set initial images
             if image_processor_func and viewer._should_continue_loop:
                 try:
-                    temp_images = image_processor_func(dict(viewer.trackbar.parameters), viewer.log)
+                    temp_images = image_processor_func(dict(viewer.trackbar.parameters), lambda x: None)
                     if temp_images:
                         viewer._internal_images = temp_images
                     else:
                         viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "No Images")]
                 except Exception as e:
-                    viewer.log(f"Error in initial image processing: {e}")
+                    print(f"Error in initial image processing: {e}")
                     viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "Process Error")]
             elif initial_images_for_first_frame:
                 viewer._internal_images = initial_images_for_first_frame
             else:
                 viewer._internal_images = [(np.zeros((100, 100, 1), dtype=np.uint8), "Empty Start")]
             
-            viewer.log("Minimal threshold viewer setup complete.")
+            pass
             
         return setup_viewer_method
         
     def _create_cleanup_viewer_method(self, viewer):
         """Create a cleanup_viewer method for the minimal viewer."""
         def cleanup_viewer_method():
-            viewer.log("Cleaning up minimal threshold viewer...")
+            pass
             viewer._should_continue_loop = False
             if hasattr(viewer.windows, 'destroy_all_windows'):
                 viewer.windows.destroy_all_windows()
@@ -1081,7 +1075,7 @@ class ThresholdingWindow:
                 # Handle key events
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q') or key == 27:
-                    viewer.log("Quit key pressed in threshold viewer")
+                    pass
                     viewer._should_continue_loop = False
                 elif key == ord('r'):
                     # Reset zoom and pan
@@ -1095,7 +1089,7 @@ class ThresholdingWindow:
                     # Silent view reset
                     
             except Exception as e:
-                viewer.log(f"Error in process_frame: {e}")
+                print(f"Error in process_frame: {e}")
                 import traceback
                 traceback.print_exc()
                 
@@ -1162,7 +1156,7 @@ class ThresholdingWindow:
                     viewport_image = scaled_image_for_roi[roi_y_start:roi_y_start + roi_h_actual, 
                                                         roi_x_start:roi_x_start + roi_w_actual]
                 except Exception as e:
-                    viewer.log(f"Viewport extraction error: {e}")
+                    print(f"Viewport extraction error: {e}")
                     return image
                     
                 # Create display canvas with exact viewport dimensions
@@ -1279,9 +1273,9 @@ class ThresholdingWindow:
             if self.threshold_viewer and not self.is_processing:
                 # Force immediate threshold update
                 self.update_threshold()
-                self.viewer.log(f"Parameter updated, value: {value}")
+                pass
         except Exception as e:
-            self.viewer.log(f"Error in _on_param_change: {e}")
+            print(f"Error in _on_param_change: {e}")
             import traceback
             traceback.print_exc()
             
@@ -1319,7 +1313,7 @@ class ThresholdingWindow:
             threshold_type = threshold_types[min(type_idx, len(threshold_types)-1)]
             
             # Log the threshold type being applied
-            self.viewer.log(f"Applying threshold type: {threshold_type} (idx: {type_idx})")
+            pass
             
             # Update UI combo box if it exists
             if self.threshold_type_var:
@@ -1532,7 +1526,7 @@ class ThresholdingWindow:
             self.root.update_idletasks()
         
         # Log the switch
-        self.viewer.log(f"Switched to {new_method} thresholding - trackbars updated")
+        pass
         
     def _get_trackbar_configs_for_method(self, method):
         """Get fresh trackbar configurations for the specified method with proper callbacks."""
@@ -1673,10 +1667,10 @@ class ThresholdingWindow:
             # Force threshold update
             self.update_threshold()
             
-            self.viewer.log(f"Threshold type changed to: {threshold_types[min(value, len(threshold_types)-1)]}")
+            pass
             
         except Exception as e:
-            self.viewer.log(f"Error in _on_threshold_type_change: {e}")
+            print(f"Error in _on_threshold_type_change: {e}")
             import traceback
             traceback.print_exc()
     
@@ -1780,7 +1774,7 @@ class ThresholdingWindow:
                     params = dict(self.threshold_viewer.trackbar.parameters)
                     
                     # Log all parameters for debugging
-                    self.viewer.log(f"Update threshold with params: {params}")
+                    pass
                     
                     thresholded_image = self._apply_thresholding(source_image, params)
                     
@@ -1799,15 +1793,15 @@ class ThresholdingWindow:
                         try:
                             import cv2
                             cv2.imshow(self.threshold_viewer.config.process_window_name, thresholded_image)
-                            self.viewer.log("Forced direct image display update")
+                            pass
                         except Exception as e:
-                            self.viewer.log(f"Direct imshow failed: {e}")
+                            print(f"Direct imshow failed: {e}")
             
             # Update status display
             self._update_status_display()
             
         except Exception as e:
-            self.viewer.log(f"Error in update_threshold: {e}")
+            print(f"Error in update_threshold: {e}")
             import traceback
             traceback.print_exc()
         finally:
@@ -1897,10 +1891,10 @@ class ThresholdingWindow:
             if filename:
                 with open(filename, 'w') as f:
                     json.dump(config_data, f, indent=2)
-                self.viewer.log(f"Thresholding config saved to {filename}")
+                pass
                 
         except Exception as e:
-            self.viewer.log(f"Error saving config: {e}")
+            print(f"Error saving config: {e}")
 
     def _load_config(self):
         """Load thresholding configuration from file."""
@@ -1933,10 +1927,10 @@ class ThresholdingWindow:
                     self.threshold_method_var.set(config_data["method"])
                 
                 self.update_threshold()
-                self.viewer.log(f"Thresholding config loaded from {filename}")
+                pass
                 
         except Exception as e:
-            self.viewer.log(f"Error loading config: {e}")
+            print(f"Error loading config: {e}")
 
     def _show_presets(self):
         """Show preset configurations popup."""
@@ -2039,10 +2033,10 @@ class ThresholdingWindow:
             # Update thresholding
             self.update_threshold()
             preset_window.destroy()
-            self.viewer.log(f"Applied preset: {preset_data.get('description', 'Unknown')}")
+            pass
             
         except Exception as e:
-            self.viewer.log(f"Error applying preset: {e}")
+            print(f"Error applying preset: {e}")
     
     def set_close_callback(self, callback):
         """Set a callback to be called when the window is closed."""
@@ -2055,7 +2049,7 @@ class ThresholdingWindow:
                 self.close_callback()
             except Exception as e:
                 if hasattr(self, 'viewer'):
-                    self.viewer.log(f"Error in close callback: {e}")
+                    print(f"Error in close callback: {e}")
         
         # Clean up the dedicated threshold viewer
         if self.threshold_viewer:
@@ -2064,7 +2058,7 @@ class ThresholdingWindow:
                 self.threshold_viewer = None
             except Exception as e:
                 if hasattr(self, 'viewer'):
-                    self.viewer.log(f"Error cleaning up threshold viewer: {e}")
+                    print(f"Error cleaning up threshold viewer: {e}")
         
         # Only destroy tkinter root if it exists (for full UI mode)
         if self.window_created and hasattr(self, 'root') and self.root:

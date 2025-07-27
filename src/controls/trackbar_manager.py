@@ -58,7 +58,7 @@ class TrackbarManager:
         custom_callback = config.get('custom_callback', None)
 
         if not name or not param_name:
-            viewer.log(f"Trackbar config error: 'name' and 'param_name' are required. Got: {config}")
+            print(f"Trackbar config error: 'name' and 'param_name' are required. Got: {config}")
             return
 
         if isinstance(max_value_spec, str) and max_value_spec == 'num_images-1':
@@ -91,7 +91,7 @@ class TrackbarManager:
                 try:
                     on_change_handler(viewer, value) 
                 except Exception as e:
-                    viewer.log(f"Trackbar '{name}' specific callback error: {e}\n{traceback.format_exc()}")
+                    print(f"Trackbar '{name}' specific callback error: {e}\n{traceback.format_exc()}")
             self.persistent_values[param_name] = self.parameters[param_name]
             if hasattr(viewer, 'signal_params_changed'): # For older internal loop
                  viewer.signal_params_changed()
@@ -99,7 +99,7 @@ class TrackbarManager:
         try:
             cv2.createTrackbar(name, self.window_name, initial_value_for_gui, max_value, _opencv_trackbar_callback)
         except Exception as e:
-            viewer.log(f"Error creating trackbar '{name}': {e}\n{traceback.format_exc()}")
+            print(f"Error creating trackbar '{name}': {e}\n{traceback.format_exc()}")
 
     def _odd_size_callback(self, viewer: 'ImageViewer', value: int, param_name: str, trackbar_display_name: str):
         new_val = max(1, value)

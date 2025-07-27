@@ -132,7 +132,6 @@ class AnalysisControlWindow:
             self.update_selectors()
             self._update_quick_access_buttons()
             self.window_created = True
-            self.viewer.log("Analysis control window created")
             self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
             
             # Make window focus and bring to front
@@ -140,7 +139,7 @@ class AnalysisControlWindow:
             self.root.focus_force()
 
         except Exception as e:
-            self.viewer.log(f"Failed to create analysis control window: {e}")
+            print(f"Failed to create analysis control window: {e}")
             self.window_created = False
 
     def _on_frame_configure(self, event):
@@ -150,7 +149,7 @@ class AnalysisControlWindow:
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         except Exception as e:
             if self.viewer:
-                self.viewer.log(f"Error updating scroll region: {e}")
+                print(f"Error updating scroll region: {e}")
     
     def _on_canvas_configure(self, event):
         """Update the scrollable frame width when the canvas is resized."""
@@ -161,7 +160,7 @@ class AnalysisControlWindow:
                 self.canvas.itemconfig(self.canvas_frame, width=canvas_width)
         except Exception as e:
             if self.viewer:
-                self.viewer.log(f"Error configuring canvas: {e}")
+                print(f"Error configuring canvas: {e}")
     
     def _bind_mousewheel(self):
         """Bind mouse wheel scrolling to the canvas."""
@@ -386,7 +385,7 @@ class AnalysisControlWindow:
                 if self.roi_selection >= len(roi_options): self.roi_selection = 0
                 self.roi_var.set(roi_options[self.roi_selection])
             except Exception as e:
-                self.viewer.log(f"Error updating ROI selector: {e}")
+                print(f"Error updating ROI selector: {e}")
             
             # Update Line selector
             try:
@@ -395,7 +394,7 @@ class AnalysisControlWindow:
                 if self.line_selection >= len(line_options): self.line_selection = 0
                 self.line_var.set(line_options[self.line_selection])
             except Exception as e:
-                self.viewer.log(f"Error updating Line selector: {e}")
+                print(f"Error updating Line selector: {e}")
 
             # Update Polygon selector
             try:
@@ -404,10 +403,10 @@ class AnalysisControlWindow:
                 if self.polygon_selection >= len(poly_options): self.polygon_selection = 0
                 self.polygon_var.set(poly_options[self.polygon_selection])
             except Exception as e:
-                self.viewer.log(f"Error updating Polygon selector: {e}")
+                print(f"Error updating Polygon selector: {e}")
                 
         except Exception as e:
-            self.viewer.log(f"Error updating selectors: {e}")
+            print(f"Error updating selectors: {e}")
             pass
     
     def _on_roi_select(self, event):
@@ -422,11 +421,11 @@ class AnalysisControlWindow:
         if changes['roi_changed']:
             if self.viewer.mouse.selected_roi is None:
                 if prev_selection is not None:
-                    self.viewer.log("ROI selection cleared")
+                    pass
                 elif self.roi_selection > 0:
-                    self.viewer.log(f"ROI {self.roi_selection} not available")
+                    pass
             else:
-                self.viewer.log(f"Selected ROI {self.roi_selection}")
+                pass
         
         self.viewer.update_display()
 
@@ -442,11 +441,11 @@ class AnalysisControlWindow:
         if changes['line_changed']:
             if self.viewer.mouse.selected_line is None:
                 if prev_selection is not None:
-                    self.viewer.log("Line selection cleared")
+                    pass
                 elif self.line_selection > 0:
-                    self.viewer.log(f"Line {self.line_selection} not available")
+                    pass
             else:
-                self.viewer.log(f"Selected Line {self.line_selection}")
+                pass
         
         self.viewer.update_display()
 
@@ -462,11 +461,11 @@ class AnalysisControlWindow:
         if changes['polygon_changed']:
             if self.viewer.mouse.selected_polygon is None:
                 if prev_selection is not None:
-                    self.viewer.log("Polygon selection cleared")
+                    pass
                 elif self.polygon_selection > 0:
-                    self.viewer.log(f"Polygon {self.polygon_selection} not available")
+                    pass
             else:
-                self.viewer.log(f"Selected Polygon {self.polygon_selection}")
+                pass
         
         self.viewer.update_display()
 
@@ -511,19 +510,16 @@ class AnalysisControlWindow:
     def _toggle_line_mode(self):
         self.viewer.mouse.is_line_mode = not self.viewer.mouse.is_line_mode
         self.viewer.mouse.is_polygon_mode = False
-        self.viewer.log(f"Line mode: {'On' if self.viewer.mouse.is_line_mode else 'Off'}")
         self._update_quick_access_buttons()
 
     def _toggle_polygon_mode(self):
         self.viewer.mouse.is_polygon_mode = not self.viewer.mouse.is_polygon_mode
         self.viewer.mouse.is_line_mode = False
-        self.viewer.log(f"Polygon mode: {'On' if self.viewer.mouse.is_polygon_mode else 'Off'}")
         self._update_quick_access_buttons()
 
     def _toggle_rectangle_mode(self):
         self.viewer.mouse.is_line_mode = False
         self.viewer.mouse.is_polygon_mode = False
-        self.viewer.log("Rectangle mode: On")
         self._update_quick_access_buttons()
 
     def _undo_last_point(self):
@@ -532,7 +528,6 @@ class AnalysisControlWindow:
         
         if self.viewer.mouse.is_polygon_mode and self.viewer.mouse.current_polygon:
             self.viewer.mouse.undo_last_point()
-            self.viewer.log("Last polygon point undone.")
 
     def _clear_last_rectangle(self):
         # Set as active button in drawing management section
@@ -545,7 +540,6 @@ class AnalysisControlWindow:
             self.viewer.mouse.draw_rects.pop()
             self.update_selectors()
             self.viewer.update_display()
-            self.viewer.log("Last rectangle cleared")
 
     def _clear_last_line(self):
         # Set as active button in drawing management section
@@ -558,7 +552,6 @@ class AnalysisControlWindow:
             self.viewer.mouse.draw_lines.pop()
             self.update_selectors()
             self.viewer.update_display()
-            self.viewer.log("Last line cleared")
         self.viewer.mouse.current_line = None
 
     def _clear_last_polygon(self):
@@ -572,7 +565,6 @@ class AnalysisControlWindow:
             self.viewer.mouse.draw_polygons.pop()
             self.update_selectors()
             self.viewer.update_display()
-            self.viewer.log("Last polygon cleared")
 
     def _clear_all(self):
         # Set as active button in drawing management section
@@ -586,7 +578,6 @@ class AnalysisControlWindow:
         self.viewer.mouse.clear_selections()
         self.update_selectors()
         self.viewer.update_display()
-        self.viewer.log("Cleared all ROIs, lines, and polygons")
 
     def _close_plots(self):
         # Set as active button in export_plots section
@@ -622,14 +613,14 @@ class AnalysisControlWindow:
                     polygon = [self.viewer.mouse.draw_polygons[poly_index]]
                     success = self.viewer.analyzer.export_analysis_data('polygon', polygon, export_format, full_path)
                     if success:
-                        self.viewer.log(f"Exported Polygon {self.polygon_selection} to {full_path}")
+                        pass
             else:
                 success = self.viewer.analyzer.export_analysis_data('polygon', self.viewer.mouse.draw_polygons, export_format, full_path)
                 if success:
-                    self.viewer.log(f"Exported all polygons ({len(self.viewer.mouse.draw_polygons)}) to {full_path}")
+                    pass
         except Exception as e:
             messagebox.showerror("Export Error", f"Error during export: {str(e)}")
-            self.viewer.log(f"Export error: {str(e)}")
+            print(f"Export error: {str(e)}")
         
     def _export_analysis_data(self):
         # Set as active button in export_plots section
@@ -661,7 +652,7 @@ class AnalysisControlWindow:
                         histogram_data = self.viewer.analyzer.calculate_histogram(image, polygon=polygon)
                         success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
                         if success:
-                            self.viewer.log(f"Exported histogram data for Polygon {self.polygon_selection} to {full_path}")
+                            pass
                 elif self.roi_selection > 0:
                     roi_index = self.roi_selection - 1
                     if roi_index < len(self.viewer.mouse.draw_rects):
@@ -669,12 +660,12 @@ class AnalysisControlWindow:
                         histogram_data = self.viewer.analyzer.calculate_histogram(image, roi=roi)
                         success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
                         if success:
-                            self.viewer.log(f"Exported histogram data for ROI {self.roi_selection} to {full_path}")
+                            pass
                 else:
                     histogram_data = self.viewer.analyzer.calculate_histogram(image)
                     success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
                     if success:
-                        self.viewer.log(f"Exported histogram data for full image to {full_path}")
+                        pass
             
             elif export_type == "profile":
                 if not self.viewer.mouse.draw_lines:
@@ -694,7 +685,7 @@ class AnalysisControlWindow:
                             
                     if exported_count > 0:
                         messagebox.showinfo("Export Complete", f"Exported {exported_count} line profiles.")
-                        self.viewer.log(f"Exported {exported_count} line profiles to {os.path.dirname(full_path)}")
+                        pass
                 else:
                     line_index = self.line_selection - 1
                     if line_index < len(self.viewer.mouse.draw_lines):
@@ -702,7 +693,7 @@ class AnalysisControlWindow:
                         profile_data = self.viewer.analyzer.calculate_pixel_profile(image, line)
                         success = self.viewer.analyzer.export_analysis_data('profile', profile_data, export_format, full_path)
                         if success:
-                            self.viewer.log(f"Exported profile data for Line {self.line_selection} to {full_path}")
+                            pass
                             
             elif export_type == "polygon":
                 if not self.viewer.mouse.draw_polygons:
@@ -715,15 +706,15 @@ class AnalysisControlWindow:
                         polygon = [self.viewer.mouse.draw_polygons[poly_index]]
                         success = self.viewer.analyzer.export_analysis_data('polygon', polygon, export_format, full_path)
                         if success:
-                            self.viewer.log(f"Exported Polygon {self.polygon_selection} to {full_path}")
+                            pass
                 else:
                     success = self.viewer.analyzer.export_analysis_data('polygon', self.viewer.mouse.draw_polygons, export_format, full_path)
                     if success:
-                        self.viewer.log(f"Exported all polygons to {full_path}")
+                        pass
                         
         except Exception as e:
             messagebox.showerror("Export Error", f"Error during export: {str(e)}")
-            self.viewer.log(f"Export error: {str(e)}")
+            print(f"Export error: {str(e)}")
 
     def _open_thresholding_window(self):
         # Set as active button in analysis section
@@ -741,10 +732,10 @@ class AnalysisControlWindow:
             plot_dialog.show(on_apply=self._on_plot_settings_apply)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open plot customization: {str(e)}")
-            self.viewer.log(f"Plot customization error: {str(e)}")
+            print(f"Plot customization error: {str(e)}")
 
     def _on_plot_settings_apply(self, settings):
-        self.viewer.log("Plot settings have been updated.")
+        pass
 
     def _on_closing(self):
         self.thresholding_manager.cleanup_windows()
@@ -787,10 +778,9 @@ class AnalysisControlWindow:
                         self.viewer.mouse.is_line_mode = False
                         self.viewer.mouse.is_polygon_mode = False
                         self._update_quick_access_buttons()
-                        self.viewer.log("Drawing mode cleared")
             except Exception as e:
                 if self.viewer:
-                    self.viewer.log(f"Keyboard shortcut error: {e}")
+                    print(f"Keyboard shortcut error: {e}")
         
         # Bind to the root window
         self.root.bind('<KeyPress>', on_key_press)
@@ -862,7 +852,7 @@ class AnalysisControlWindow:
                 style = self.theme_manager.get_button_style("active") if self.viewer.mouse.is_polygon_mode else self.theme_manager.get_button_style()
                 self.quick_access_buttons['polygon_mode'].config(style=style)
         except Exception as e:
-            self.viewer.log(f"Error updating quick access buttons: {e}")
+            print(f"Error updating quick access buttons: {e}")
 
     def _set_active_button(self, section, button_key):
         """Set a button as active and update visual states for the section."""
@@ -884,7 +874,7 @@ class AnalysisControlWindow:
                 
         except Exception as e:
             if self.viewer:
-                self.viewer.log(f"Button state error: {e}")
+                print(f"Button state error: {e}")
 
     def _provide_button_feedback(self, button):
         """Provide visual feedback when action buttons are clicked."""
@@ -902,4 +892,4 @@ class AnalysisControlWindow:
             self.root.after(200, lambda: button.config(style=original_style))
         except Exception as e:
             if self.viewer:
-                self.viewer.log(f"Button feedback error: {e}")
+                print(f"Button feedback error: {e}")

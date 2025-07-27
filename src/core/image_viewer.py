@@ -83,7 +83,7 @@ class ImageViewer:
         if not isinstance(image_list, list) or \
            not all(isinstance(item, tuple) and len(item) == 2 and \
                     isinstance(item[0], np.ndarray) and item[0].size > 0 for item in image_list):
-            self.log(f"Error: display_images with invalid format/empty image. Input type: {type(image_list)}")
+            print(f"Error: display_images with invalid format/empty image. Input type: {type(image_list)}")
             self._internal_images = [(np.zeros((self.config.min_window_size[1],self.config.min_window_size[0],1), dtype=np.uint8), "Image Set Error")]
         else:
             self._internal_images = image_list
@@ -96,7 +96,7 @@ class ImageViewer:
                 # Process tkinter events after OpenCV operations
                 self._process_tk_events()
             except Exception as e:
-                self.log(f"Error in process_frame: {e}")
+                print(f"Error in process_frame: {e}")
         
         if not self.config.enable_debug:
             self._headless_iteration_count += 1
@@ -105,7 +105,7 @@ class ImageViewer:
         if not self.config.enable_debug: return
         if not self._should_continue_loop: return
         if not self.windows.windows_created:
-             self.log("Warning: _process_frame_and_check_quit called but windows not created (debug on).")
+             print("Warning: _process_frame_and_check_quit called but windows not created (debug on).")
              self._should_continue_loop = False
              return
 
@@ -122,27 +122,27 @@ class ImageViewer:
             key = cv2.waitKey(1) & 0xFF
             
             if key == ord('q') or key == 27:
-                self.log("Quit key pressed. Signaling loop to stop.")
+                pass
                 self._should_continue_loop = False
             elif key == ord('r'): 
                 self.reset_view()
         except Exception as e:
-            self.log(f"Error in process_frame: {e}")
+            print(f"Error in process_frame: {e}")
         
         try:
             if self._should_continue_loop and \
                cv2.getWindowProperty(self.config.process_window_name, cv2.WND_PROP_VISIBLE) < 1:
-                self.log("Process window closed by user. Signaling loop to stop.")
+                pass
                 self._should_continue_loop = False
         except cv2.error:
             if self._should_continue_loop:
-                 self.log("cv2.error checking window visibility. Assuming closed.")
+                 pass
                  self._should_continue_loop = False
 
     def should_loop_continue(self) -> bool:
         if not self.config.enable_debug:
             if self._headless_iteration_count >= self.max_headless_iterations:
-                self.log(f"Headless mode: Reached max iterations ({self.max_headless_iterations})")
+                pass
                 return False
             return True
         else:
@@ -153,7 +153,7 @@ class ImageViewer:
                      initial_images_for_first_frame: Optional[List[Tuple[np.ndarray, str]]] = None,
                      image_processor_func: Optional[ImageProcessor] = None):
         self.clear_log()
-        self.log(f"Setting up viewer (UI Enabled: {self.config.enable_debug})...")
+        pass
         self._should_continue_loop = True
         self.user_image_processor = image_processor_func
         self._initialize_parameters()
@@ -161,7 +161,7 @@ class ImageViewer:
         if self.config.enable_debug:
             self.windows.create_windows(self._mouse_callback, self._text_mouse_callback, self._show_text_window_enabled)
             if not self.windows.windows_created:
-                self.log("FATAL: UI Mode: ImageViewer failed to create windows.")
+                pass
                 print("FATAL: UI Mode: ImageViewer failed to create windows.")
                 self._should_continue_loop = False
             else:
@@ -170,11 +170,11 @@ class ImageViewer:
 
         temp_images = []
         if self.user_image_processor:
-            self.log("Using image processor for initial image set.")
+            pass
             try:
                 temp_images = self.user_image_processor(dict(self.trackbar.parameters), self.log)
             except Exception as e:
-                self.log(f"ERROR in user processor (initial frame): {e}\n{traceback.format_exc()}")
+                print(f"ERROR in user processor (initial frame): {e}\n{traceback.format_exc()}")
                 temp_images = [(np.zeros((100,100,1), dtype=np.uint8), "Init Proc Error")]
         elif initial_images_for_first_frame is not None:
             temp_images = initial_images_for_first_frame
@@ -183,14 +183,14 @@ class ImageViewer:
         self._internal_images = temp_images
 
         if self.config.enable_debug and self.config.trackbar and self.windows.windows_created:
-            self.log(f"Creating {len(self.config.trackbar)} UI trackbars...")
+            pass
             for trackbar_config_item in self.config.trackbar:
                 self.trackbar.create_trackbar(trackbar_config_item, self)
         
         if self.config.enable_debug and self._should_continue_loop:
             self._process_frame_and_check_quit()
         
-        self.log("Viewer setup complete.")
+        pass
 
     def update_display(self, image_list: Optional[List[Tuple[np.ndarray, str]]] = None):
         if self.user_image_processor:
@@ -199,7 +199,7 @@ class ImageViewer:
                 processed_images = self.user_image_processor(dict(self.trackbar.parameters), self.log)
                 self.display_images = processed_images
             except Exception as e:
-                self.log(f"ERROR in user_image_processor: {e}\n{traceback.format_exc()}")
+                print(f"ERROR in user_image_processor: {e}\n{traceback.format_exc()}")
                 self.display_images = [(np.zeros((100,100,1), dtype=np.uint8), "Proc Error")]
         elif image_list is not None:
             self.display_images = image_list
@@ -213,7 +213,7 @@ class ImageViewer:
         for tb_conf in self.config.trackbar:
             param_name = tb_conf.get('param_name')
             if not param_name:
-                self.log(f"Warning: Trackbar config item missing 'param_name': {tb_conf}")
+                print(f"Warning: Trackbar config item missing 'param_name': {tb_conf}")
                 continue
             initial_value_from_config = tb_conf.get('initial_value', 0)
             callback_spec = tb_conf.get('callback')
@@ -271,7 +271,7 @@ class ImageViewer:
             self.windows.resize_process_window(self.current_image_dims[1], self.current_image_dims[0])
         else:
              self.windows.resize_process_window(self.initial_window_size[0], self.initial_window_size[1])
-        self.log("View reset.")
+        pass
 
     def _update_show_trackbar(self):
         if not self.config.enable_debug or not self.windows.windows_created or not self.config.trackbar: return
@@ -308,7 +308,7 @@ class ImageViewer:
                     len(self.display_images[current_idx]) == 2 and\
                     isinstance(self.display_images[current_idx][0], np.ndarray) and\
                     self.display_images[current_idx][0].size > 0 ):
-                self.log(f"Error: Invalid image data at index {current_idx}.")
+                print(f"Error: Invalid image data at index {current_idx}.")
                 return None
 
             original_image, name = self.display_images[current_idx]
@@ -514,14 +514,14 @@ class ImageViewer:
                 roi_h_actual = min(view_h, scaled_h - roi_y_start)
 
                 if roi_w_actual <= 0 or roi_h_actual <= 0:
-                    self.log(f"Error: Invalid ROI dimensions for view in '{name}'.")
+                    print(f"Error: Invalid ROI dimensions for view in '{name}'.")
                     return None
                 
                 image_roi_content = scaled_image_for_roi[roi_y_start : roi_y_start + roi_h_actual, \
                                                          roi_x_start : roi_x_start + roi_w_actual]
 
                 if image_roi_content.size == 0:
-                    self.log(f"Error: View ROI content is empty for '{name}'.")
+                    print(f"Error: View ROI content is empty for '{name}'.")
                     return None
 
                 display_canvas = np.full((view_h, view_w, 3), 0, dtype=image_roi_content.dtype)
@@ -539,14 +539,14 @@ class ImageViewer:
                      cv2.imshow(self.config.process_window_name, display_canvas)
                 return display_canvas, self.size_ratio, self.mouse.mouse_point
             except Exception as e:
-                self.log(f"Error in _process_image_for_display for '{name}': {e}\n{traceback.format_exc()}")
+                print(f"Error in _process_image_for_display for '{name}': {e}\n{traceback.format_exc()}")
                 error_img = np.full((self.config.screen_height, self.config.screen_width, 3), 10, dtype=np.uint8)
                 cv2.putText(error_img, f"Display Error: {name}", (20,40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 1)
                 if self.windows.windows_created and cv2.getWindowProperty(self.config.process_window_name, cv2.WND_PROP_VISIBLE) >=1:
                     cv2.imshow(self.config.process_window_name, error_img)
                 return None
         except Exception as e:
-            self.log(f"Error in _process_image_for_display: {e}")
+            print(f"Error in _process_image_for_display: {e}")
             self._recover_from_error()
             return None
 
@@ -626,13 +626,13 @@ class ImageViewer:
                 if (len(self.mouse.current_polygon) > 2 and
                     np.linalg.norm(np.array(self.mouse.current_polygon[0]) - np.array((ptr_x_orig, ptr_y_orig))) < 10):
                     self.mouse.draw_polygons.append(self.mouse.current_polygon.copy())
-                    self.log(f"Polygon closed with {len(self.mouse.current_polygon)} points.")
+                    pass
                     self.mouse.current_polygon.clear()
                     if self.analysis_window:
                         self.analysis_window.update_selectors()
                 else:
                     self.mouse.current_polygon.append((ptr_x_orig, ptr_y_orig))
-                    self.log(f"Polygon point added: ({ptr_x_orig},{ptr_y_orig})")
+                    pass
             elif self.mouse.is_line_mode:
                 self.mouse.line_start = (ptr_x_orig, ptr_y_orig)
         elif event == cv2.EVENT_LBUTTONUP:
@@ -644,7 +644,7 @@ class ImageViewer:
                                             (ptr_y_orig - self.mouse.line_start[1])**2)
                         if line_length > 5:
                             self.mouse.draw_lines.append(line_coords)
-                            self.log(f"Line drawn: ({self.mouse.line_start[0]},{self.mouse.line_start[1]}) to ({ptr_x_orig},{ptr_y_orig})")
+                            pass
                             if self.analysis_window:
                                 self.analysis_window.update_selectors()
                 else:
@@ -654,7 +654,7 @@ class ImageViewer:
                     rect_h = abs(self.mouse.left_button_start[1] - ptr_y_orig)
                     if rect_w > 0 and rect_h > 0:
                         self.mouse.draw_rects.append((rect_x, rect_y, rect_w, rect_h))
-                        self.log(f"ROI drawn: x={rect_x}, y={rect_y}, w={rect_w}, h={rect_h}")
+                        pass
                         if self.analysis_window:
                             self.analysis_window.update_selectors()
             self.mouse.is_left_button_down = False
@@ -666,41 +666,41 @@ class ImageViewer:
             if self.mouse.is_polygon_mode:
                 if len(self.mouse.current_polygon) > 2:
                     self.mouse.draw_polygons.append(self.mouse.current_polygon.copy())
-                    self.log(f"Polygon closed with {len(self.mouse.current_polygon)} points.")
+                    pass
                     self.mouse.current_polygon.clear()
                     if self.analysis_window:
                         self.analysis_window.update_selectors()
             elif self.mouse.is_line_mode:
                 if self.mouse.draw_lines: 
                     removed_line = self.mouse.draw_lines.pop()
-                    self.log(f"Last line removed: {removed_line}")
+                    pass
                     if self.analysis_window:
                         self.analysis_window.update_selectors()
                 self.mouse.current_line = None
             else:
                 if self.mouse.draw_rects: 
                     removed_rect = self.mouse.draw_rects.pop()
-                    self.log(f"Last rect removed: {removed_rect}")
+                    pass
                     if self.analysis_window:
                         self.analysis_window.update_selectors()
         elif event == cv2.EVENT_RBUTTONDBLCLK:
             if self.mouse.is_polygon_mode:
                 self.mouse.draw_polygons.clear()
                 self.mouse.current_polygon.clear()
-                self.log("All polygons cleared.")
+                pass
                 if self.analysis_window:
                     self.analysis_window.update_selectors()
             elif self.mouse.is_line_mode:
                 if self.mouse.draw_lines: 
                     self.mouse.draw_lines.clear()
-                    self.log("All lines cleared.")
+                    pass
                     if self.analysis_window:
                         self.analysis_window.update_selectors()
                 self.mouse.current_line = None
             else:
                 if self.mouse.draw_rects: 
                     self.mouse.draw_rects.clear()
-                    self.log("All rects cleared.")
+                    pass
                     if self.analysis_window:
                         self.analysis_window.update_selectors()
         elif event == cv2.EVENT_MBUTTONDOWN:
@@ -785,7 +785,7 @@ class ImageViewer:
         self.config.enable_debug = True
 
         self.clear_log()
-        self.log(f"Starting display session (run_with_internal_loop). Title: '{title if title else 'N/A'}'")
+        pass
         self._should_continue_loop = True 
         self._initialize_parameters()
 
@@ -797,13 +797,13 @@ class ImageViewer:
         elif isinstance(images_or_processor, np.ndarray):
              self._internal_images = [(images_or_processor.copy(), title or "Image")]
         else:
-            self.log(f"Error: `images_or_processor` type invalid for internal loop. Got {type(images_or_processor)}")
+            print(f"Error: `images_or_processor` type invalid for internal loop. Got {type(images_or_processor)}")
             self._internal_images = [(np.zeros((100,100,1), dtype=np.uint8), "Input Error")]
 
         if not self.windows.windows_created:
             self.windows.create_windows(self._mouse_callback, self._text_mouse_callback, self._show_text_window_enabled)
             if not self.windows.windows_created:
-                self.log("FATAL: Failed to create OpenCV windows for internal loop.")
+                print("FATAL: Failed to create OpenCV windows for internal loop.")
                 self.config.enable_debug = original_debug_state
                 return
         
@@ -812,7 +812,7 @@ class ImageViewer:
                 self._internal_images = self.image_processing_func_internal(dict(self.trackbar.parameters))
                 self._params_changed = False
             except Exception as e:
-                self.log(f"ERROR during initial image processing (internal loop): {e}\n{traceback.format_exc()}")
+                print(f"ERROR during initial image processing (internal loop): {e}\n{traceback.format_exc()}")
                 self._internal_images = [(np.zeros((100,100,3), dtype=np.uint8), "Processing Error")]
 
         if self.config.trackbar:
@@ -825,14 +825,14 @@ class ImageViewer:
                     self._internal_images = self.image_processing_func_internal(dict(self.trackbar.parameters))
                     self._params_changed = False
                 except Exception as e:
-                    self.log(f"ERROR image re-processing (internal loop): {e}\n{traceback.format_exc()}")
+                    print(f"ERROR image re-processing (internal loop): {e}\n{traceback.format_exc()}")
                     self._params_changed = False
             self._process_frame_and_check_quit()
             if not self.windows.windows_created : self._should_continue_loop = False 
         
         self.cleanup_viewer()
         self.config.enable_debug = original_debug_state
-        self.log("Internal display session ended.")
+        pass
 
     def register_event_handler(self, event_name: str, handler: Callable):
         if event_name not in self._event_handlers:
@@ -844,7 +844,7 @@ class ImageViewer:
             try:
                 handler(*args, **kwargs)
             except Exception as e:
-                self.log(f"Error in event handler: {e}")
+                print(f"Error in event handler: {e}")
 
     def get_current_state(self) -> Dict[str, Any]:
         return {
@@ -914,6 +914,6 @@ class ImageViewer:
                     break
                     
         except KeyboardInterrupt:
-            self.log("Interrupted by user")
+            pass
         finally:
             return self.get_all_params()
