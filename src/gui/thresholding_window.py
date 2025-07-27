@@ -179,8 +179,7 @@ class ThresholdingWindow:
     
     def _create_colorspace_selection_unified(self):
         """Create colorspace selection section for unified window."""
-        colorspace_frame = ttk.LabelFrame(self.main_container, text="", 
-                                        style=self.theme_manager.get_frame_style())
+        colorspace_frame = ttk.Frame(self.main_container, style=self.theme_manager.get_frame_style())
         colorspace_frame.pack(fill='x', padx=5, pady=5)
         
         # Available color spaces
