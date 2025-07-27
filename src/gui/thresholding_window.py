@@ -6,18 +6,23 @@ import json
 from ..analysis.threshold.image_processor import ThresholdProcessor
 from ..controls.trackbar_manager import TrackbarManager, make_trackbar
 from ..config.viewer_config import ViewerConfig
+from .theme_manager import ThemeManager
 
 class ThresholdingWindow:
-    def __init__(self, viewer, color_space):
+    def __init__(self, viewer, color_space=None):
         self.viewer = viewer
-        self.color_space = color_space
+        self.color_space = color_space or "BGR"  # Default to BGR if not specified
         self.root = None
         self.window_created = False
+        
+        # Initialize theme manager with dark mode to match analysis control window
+        self.theme_manager = ThemeManager(use_dark_mode=True)
         
         # Initialize UI variables to prevent AttributeError
         self.threshold_method_var = None
         self.threshold_type_var = None
         self.adaptive_method_var = None
+        self.color_space_var = None  # For colorspace selection
         
         # Track which trackbars are created for each method
         self.method_trackbars = {
@@ -57,87 +62,28 @@ class ThresholdingWindow:
         self.trackbar_manager = self.threshold_viewer.trackbar
         
         self.root = tk.Toplevel()
-        self.root.title(f"Thresholding Controls - {self.color_space}")
+        self.root.title("Thresholding Controls")
+        self.root.geometry("500x700")
+        
+        # Apply theme to match analysis control window
+        self.theme_manager.configure_theme(self.root)
+        
+        # Create colorspace selection section at the top
+        self._create_colorspace_selection()
+        
+        # Create separator
+        separator = ttk.Separator(self.root, orient='horizontal')
+        separator.pack(fill='x', padx=10, pady=5)
 
+        # Create method controls based on colorspace
         if self.color_space == "Grayscale":
-            # Thresholding method selection
-            method_frame = ttk.LabelFrame(self.root, text="Thresholding Method")
-            method_frame.pack(padx=10, pady=5, fill="x")
-            
-            self.threshold_method_var = tk.StringVar(value="Simple")
-            methods = ["Simple", "Adaptive", "Otsu", "Triangle"]
-            for method in methods:
-                ttk.Radiobutton(method_frame, text=method, variable=self.threshold_method_var, 
-                               value=method, command=self.on_method_change).pack(anchor="w")
-            
-            # Threshold type selection
-            type_frame = ttk.LabelFrame(self.root, text="Threshold Type")
-            type_frame.pack(padx=10, pady=5, fill="x")
-            
-            self.threshold_type_var = tk.StringVar(value="BINARY")
-            types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
-            self.threshold_type_combo = ttk.Combobox(type_frame, textvariable=self.threshold_type_var, 
-                                                    values=types, state="readonly", width=15)
-            self.threshold_type_combo.pack(padx=5, pady=5)
-            self.threshold_type_combo.bind("<<ComboboxSelected>>", self._on_dropdown_threshold_type_change)
-            
-            # Adaptive method selection (initially hidden)
-            self.adaptive_frame = ttk.LabelFrame(self.root, text="Adaptive Method")
-            self.adaptive_method_var = tk.StringVar(value="MEAN_C")
-            adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
-            self.adaptive_method_combo = ttk.Combobox(self.adaptive_frame, textvariable=self.adaptive_method_var,
-                                                     values=adaptive_methods, state="readonly", width=15)
-            self.adaptive_method_combo.pack(padx=5, pady=5)
-            self.adaptive_method_combo.bind("<<ComboboxSelected>>", self._on_dropdown_adaptive_method_change)
+            self._create_grayscale_method_controls()
         else:
-            # Color space thresholding method selection
-            method_frame = ttk.LabelFrame(self.root, text="Thresholding Method")
-            method_frame.pack(padx=10, pady=5, fill="x")
-            
-            self.threshold_method_var = tk.StringVar(value="Range")
-            methods = ["Range", "Simple", "Otsu", "Triangle", "Adaptive"]
-            for method in methods:
-                ttk.Radiobutton(method_frame, text=method, variable=self.threshold_method_var, 
-                               value=method, command=self.on_color_method_change).pack(anchor="w")
-            
-            # Threshold type selection for color spaces
-            type_frame = ttk.LabelFrame(self.root, text="Threshold Type")
-            type_frame.pack(padx=10, pady=5, fill="x")
-            
-            self.threshold_type_var = tk.StringVar(value="BINARY")
-            types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
-            self.threshold_type_combo = ttk.Combobox(type_frame, textvariable=self.threshold_type_var, 
-                                                    values=types, state="readonly", width=15)
-            self.threshold_type_combo.pack(padx=5, pady=5)
-            self.threshold_type_combo.bind("<<ComboboxSelected>>", self._on_dropdown_threshold_type_change)
-            
-            # Advanced controls frame (initially hidden)
-            self.advanced_controls_frame = ttk.LabelFrame(self.root, text="Advanced Controls")
-            
-            # Adaptive method selection for color spaces
-            self.adaptive_method_var = tk.StringVar(value="MEAN_C")
-            adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
-            ttk.Label(self.advanced_controls_frame, text="Adaptive Method:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
-            self.adaptive_method_combo = ttk.Combobox(self.advanced_controls_frame, textvariable=self.adaptive_method_var,
-                                                     values=adaptive_methods, state="readonly", width=12)
-            self.adaptive_method_combo.grid(row=0, column=1, padx=5, pady=2)
-            self.adaptive_method_combo.bind("<<ComboboxSelected>>", self._on_dropdown_adaptive_method_change)
-
-        # Status display frame
-        status_frame = ttk.LabelFrame(self.root, text="Current Parameters")
-        status_frame.pack(padx=10, pady=5, fill="x")
+            self._create_color_method_controls()
         
-        self.status_text = tk.Text(status_frame, height=4, width=40, font=("Consolas", 8))
-        self.status_text.pack(padx=5, pady=5, fill="x")
-        self.status_text.config(state=tk.DISABLED)  # Read-only
-        
-        button_frame = ttk.Frame(self.root)
-        button_frame.pack(padx=10, pady=10)
-        
-        # Add preset and save/load buttons
-        ttk.Button(button_frame, text="Presets ▼", command=self._show_presets).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Save Config", command=self._save_config).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Load Config", command=self._load_config).pack(side=tk.LEFT, padx=5)
+        # Create status and buttons sections
+        self._create_status_section()
+        self._create_buttons_section()
 
         self.window_created = True
         self.viewer.log(f"Thresholding window for {self.color_space} created.")
@@ -145,6 +91,550 @@ class ThresholdingWindow:
         
         # Create trackbars after UI is set up
         self.create_trackbars()
+    
+    def create_unified_window(self):
+        """Create unified window with colorspace selection and thresholding parameters visible."""
+        if self.window_created:
+            return
+
+        # Create tkinter window
+        self.root = tk.Toplevel()
+        self.root.title("Thresholding Controls")
+        self.root.geometry("500x800")
+        
+        # Apply theme to match analysis control window
+        self.theme_manager.configure_theme(self.root)
+        
+        # Create main scrollable frame
+        self._create_scrollable_frame()
+        
+        # Create colorspace selection section at the top
+        self._create_colorspace_selection_unified()
+        
+        # Create separator
+        separator = ttk.Separator(self.content_frame, orient='horizontal')
+        separator.pack(fill='x', padx=10, pady=10)
+        
+        # Create thresholding controls section (initially empty, will be populated when colorspace is selected)
+        self.controls_frame = ttk.Frame(self.content_frame, style=self.theme_manager.get_frame_style())
+        self.controls_frame.pack(fill='both', expand=True, padx=10, pady=5)
+        
+        # Show initial message
+        self.status_label = ttk.Label(self.controls_frame, 
+                                     text="👆 Please select a color space above to see thresholding parameters",
+                                     style=self.theme_manager.get_label_style())
+        self.status_label.pack(pady=20)
+
+        self.window_created = True
+        self.viewer.log("Unified thresholding window created.")
+        self.root.protocol("WM_DELETE_WINDOW", self.destroy_window)
+    
+    def _create_scrollable_frame(self):
+        """Create a scrollable frame for the window content."""
+        # Create main container
+        main_container = ttk.Frame(self.root)
+        main_container.pack(fill='both', expand=True, padx=5, pady=5)
+        
+        # Create canvas and scrollbar
+        self.canvas = tk.Canvas(main_container, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=self.canvas.yview)
+        
+        # Create scrollable content frame
+        self.content_frame = ttk.Frame(self.canvas, style=self.theme_manager.get_frame_style())
+        
+        # Configure scrolling
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        canvas_frame = self.canvas.create_window((0, 0), window=self.content_frame, anchor="nw")
+        
+        # Pack canvas and scrollbar
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Update scroll region when content changes
+        def configure_scroll_region(event):
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+        def configure_canvas_width(event):
+            canvas_width = event.width
+            self.canvas.itemconfig(canvas_frame, width=canvas_width)
+        
+        self.content_frame.bind("<Configure>", configure_scroll_region)
+        self.canvas.bind("<Configure>", configure_canvas_width)
+        
+        # Mouse wheel scrolling
+        def on_mousewheel(event):
+            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        self.canvas.bind_all("<MouseWheel>", on_mousewheel)
+    
+    def _create_colorspace_selection_unified(self):
+        """Create colorspace selection section for unified window."""
+        colorspace_frame = ttk.LabelFrame(self.content_frame, text="Color Space Selection", 
+                                        style=self.theme_manager.get_frame_style())
+        colorspace_frame.pack(fill='x', padx=10, pady=5)
+        
+        # Available color spaces
+        color_spaces = ["BGR", "HSV", "HLS", "Lab", "Luv", "YCrCb", "XYZ", "Grayscale"]
+        
+        # Info label
+        info_text = "Available methods: Range, Simple, Otsu, Triangle, Adaptive\nAll color spaces supported with automatic conversion"
+        info_label = ttk.Label(colorspace_frame, text=info_text, font=("Arial", 8), 
+                              style=self.theme_manager.get_label_style())
+        info_label.pack(pady=5)
+        
+        # Colorspace selection
+        selection_frame = ttk.Frame(colorspace_frame, style=self.theme_manager.get_frame_style())
+        selection_frame.pack(fill='x', padx=10, pady=5)
+        
+        ttk.Label(selection_frame, text="Color Space:", 
+                 style=self.theme_manager.get_label_style()).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.color_space_var = tk.StringVar()
+        color_space_combo = ttk.Combobox(selection_frame, textvariable=self.color_space_var, 
+                                       values=color_spaces, state="readonly", width=15,
+                                       style=self.theme_manager.get_combobox_style())
+        color_space_combo.pack(side=tk.LEFT, padx=(0, 10))
+        color_space_combo.bind('<<ComboboxSelected>>', self._on_colorspace_change_unified)
+        
+        # Description label that updates with selection
+        self.desc_var = tk.StringVar()
+        desc_label = ttk.Label(selection_frame, textvariable=self.desc_var, font=("Arial", 8), 
+                             style=self.theme_manager.get_label_style())
+        desc_label.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # Enhanced color space descriptions
+        self.color_space_descriptions = {
+            "BGR": "BGR - Standard OpenCV color format",
+            "HSV": "HSV - Best for color-based detection",
+            "HLS": "HLS - Alternative color representation", 
+            "Lab": "Lab - Perceptually uniform color space",
+            "Luv": "Luv - Another perceptually uniform space",
+            "YCrCb": "YCrCb - Luma-chroma (JPEG standard)",
+            "XYZ": "XYZ - Device-independent color space",
+            "Grayscale": "Grayscale - Single intensity channel"
+        }
+        
+        # Don't set initial selection - user must choose
+        self.color_space_var.set("")
+        self.desc_var.set("Please select a color space above")
+        
+        # Bind description update
+        def update_description(event=None):
+            selected = self.color_space_var.get()
+            if selected:
+                self.desc_var.set(self.color_space_descriptions.get(selected, ""))
+            else:
+                self.desc_var.set("Please select a color space above")
+        
+        color_space_combo.bind('<<ComboboxSelected>>', lambda e: [update_description(e), self._on_colorspace_change_unified(e)])
+        
+        # Determine if grayscale image
+        if self.viewer._internal_images:
+            current_idx = self.viewer.trackbar.parameters.get('show', 0)
+            image, _ = self.viewer._internal_images[current_idx]
+            is_grayscale = len(image.shape) == 2
+            
+            if is_grayscale:
+                note_text = "Note: Grayscale image detected - color spaces will show converted results"
+                note_label = ttk.Label(colorspace_frame, text=note_text, font=("Arial", 7), 
+                                     style=self.theme_manager.get_label_style())
+                note_label.pack(pady=2)
+
+    def _on_colorspace_change_unified(self, event=None):
+        """Handle colorspace selection changes in unified window."""
+        new_colorspace = self.color_space_var.get()
+        
+        if not new_colorspace:
+            return
+        
+        # Update description
+        self.desc_var.set(self.color_space_descriptions.get(new_colorspace, ""))
+        
+        # Update colorspace
+        self.color_space = new_colorspace
+        self.viewer.log(f"Changed colorspace to: {new_colorspace}")
+        
+        # Clear the controls frame
+        for widget in self.controls_frame.winfo_children():
+            widget.destroy()
+        
+        # Create/recreate the threshold viewer for new colorspace
+        self._create_or_update_threshold_viewer()
+        
+        # Create thresholding controls for the new colorspace
+        self._create_thresholding_controls_unified()
+        
+    def _create_or_update_threshold_viewer(self):
+        """Create or update the threshold viewer for the current colorspace."""
+        # Clean up existing threshold viewer if it exists
+        if hasattr(self, 'threshold_viewer') and self.threshold_viewer:
+            try:
+                self.threshold_viewer.cleanup_viewer()
+            except:
+                pass
+            self.threshold_viewer = None
+        
+        # Create new threshold viewer with appropriate trackbars
+        self._create_threshold_viewer()
+        
+        # Create trackbars for the current colorspace
+        self.create_trackbars()
+    
+    def _create_thresholding_controls_unified(self):
+        """Create thresholding controls in the unified window."""
+        # Method selection frame
+        method_frame = ttk.LabelFrame(self.controls_frame, text="Thresholding Method", 
+                                    style=self.theme_manager.get_frame_style())
+        method_frame.pack(fill='x', pady=5)
+        
+        if self.color_space == "Grayscale":
+            # Grayscale methods
+            self.threshold_method_var = tk.StringVar(value="Simple")
+            methods = ["Simple", "Adaptive", "Otsu", "Triangle"]
+            for method in methods:
+                ttk.Radiobutton(method_frame, text=method, variable=self.threshold_method_var, 
+                               value=method, command=self._on_method_change_unified).pack(anchor="w", padx=5)
+        else:
+            # Color space methods
+            self.threshold_method_var = tk.StringVar(value="Range")
+            methods = ["Range", "Simple", "Otsu", "Triangle", "Adaptive"]
+            for method in methods:
+                ttk.Radiobutton(method_frame, text=method, variable=self.threshold_method_var, 
+                               value=method, command=self._on_method_change_unified).pack(anchor="w", padx=5)
+        
+        # Threshold type selection
+        type_frame = ttk.LabelFrame(self.controls_frame, text="Threshold Type", 
+                                  style=self.theme_manager.get_frame_style())
+        type_frame.pack(fill='x', pady=5)
+        
+        self.threshold_type_var = tk.StringVar(value="BINARY")
+        types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
+        self.threshold_type_combo = ttk.Combobox(type_frame, textvariable=self.threshold_type_var, 
+                                                values=types, state="readonly", width=15,
+                                                style=self.theme_manager.get_combobox_style())
+        self.threshold_type_combo.pack(padx=5, pady=5)
+        self.threshold_type_combo.bind("<<ComboboxSelected>>", self._on_threshold_type_change_unified)
+        
+        # Adaptive method frame (initially hidden)
+        self.adaptive_frame = ttk.LabelFrame(self.controls_frame, text="Adaptive Method", 
+                                           style=self.theme_manager.get_frame_style())
+        self.adaptive_method_var = tk.StringVar(value="MEAN_C")
+        adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
+        self.adaptive_method_combo = ttk.Combobox(self.adaptive_frame, textvariable=self.adaptive_method_var,
+                                                 values=adaptive_methods, state="readonly", width=15,
+                                                 style=self.theme_manager.get_combobox_style())
+        self.adaptive_method_combo.pack(padx=5, pady=5)
+        self.adaptive_method_combo.bind("<<ComboboxSelected>>", self._on_adaptive_method_change_unified)
+        
+        # Status display
+        status_frame = ttk.LabelFrame(self.controls_frame, text="Current Parameters", 
+                                    style=self.theme_manager.get_frame_style())
+        status_frame.pack(fill='x', pady=5)
+        
+        self.status_text = tk.Text(status_frame, height=4, width=40, font=("Consolas", 8))
+        self.status_text.pack(padx=5, pady=5, fill="x")
+        self.status_text.config(state=tk.DISABLED)
+        
+        # Buttons
+        button_frame = ttk.Frame(self.controls_frame, style=self.theme_manager.get_frame_style())
+        button_frame.pack(fill='x', pady=10)
+        
+        ttk.Button(button_frame, text="Presets ▼", command=self._show_presets,
+                  style=self.theme_manager.get_button_style()).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Save Config", command=self._save_config,
+                  style=self.theme_manager.get_button_style()).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Load Config", command=self._load_config,
+                  style=self.theme_manager.get_button_style()).pack(side=tk.LEFT, padx=5)
+        
+        # Update UI for current method
+        self._update_ui_for_method_unified(self.threshold_method_var.get())
+        
+        # Update status display
+        self._update_status_display()
+    
+    def _on_method_change_unified(self):
+        """Handle threshold method changes in unified window."""
+        if not self.threshold_method_var:
+            return
+        
+        method = self.threshold_method_var.get()
+        self._switch_to_method(method)
+        self._update_ui_for_method_unified(method)
+        self.update_threshold()
+    
+    def _on_threshold_type_change_unified(self, event=None):
+        """Handle threshold type changes in unified window."""
+        self._on_dropdown_threshold_type_change(event)
+    
+    def _on_adaptive_method_change_unified(self, event=None):
+        """Handle adaptive method changes in unified window."""
+        self._on_dropdown_adaptive_method_change(event)
+    
+    def _update_ui_for_method_unified(self, method):
+        """Update UI elements for the selected method in unified window."""
+        if not hasattr(self, 'adaptive_frame'):
+            return
+            
+        if method == "Adaptive":
+            self.adaptive_frame.pack(fill='x', pady=5, after=self.threshold_type_combo.master)
+            # Limit threshold types for adaptive
+            if hasattr(self, 'threshold_type_combo'):
+                self.threshold_type_combo['values'] = ["BINARY", "BINARY_INV"]
+        else:
+            self.adaptive_frame.pack_forget()
+            # All types available for other methods
+            if hasattr(self, 'threshold_type_combo'):
+                self.threshold_type_combo['values'] = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
+
+    def create_simple_threshold_viewer(self):
+        """Create only the OpenCV threshold viewer without tkinter UI."""
+        if self.window_created:
+            return
+
+        # Create a dedicated ImageViewer for thresholding
+        self._create_threshold_viewer()
+        self.trackbar_manager = self.threshold_viewer.trackbar
+        
+        # Mark as created but without tkinter window
+        self.window_created = True
+        self.viewer.log(f"Simple thresholding viewer for {self.color_space} created.")
+        
+        # Create trackbars for the selected colorspace
+        self.create_trackbars()
+        
+    def _create_colorspace_selection(self):
+        """Create colorspace selection section at the top of the window."""
+        colorspace_frame = ttk.LabelFrame(self.root, text="Color Space Selection", style=self.theme_manager.get_frame_style())
+        colorspace_frame.pack(padx=10, pady=5, fill="x")
+        
+        # Available color spaces
+        color_spaces = ["BGR", "HSV", "HLS", "Lab", "Luv", "YCrCb", "XYZ", "Grayscale"]
+        
+        # Info label
+        info_text = "Available methods: Range, Simple, Otsu, Triangle, Adaptive\nAll color spaces supported with automatic conversion"
+        info_label = ttk.Label(colorspace_frame, text=info_text, font=("Arial", 8), style=self.theme_manager.get_label_style())
+        info_label.pack(pady=5)
+        
+        # Colorspace selection
+        selection_frame = ttk.Frame(colorspace_frame, style=self.theme_manager.get_frame_style())
+        selection_frame.pack(fill='x', padx=10, pady=5)
+        
+        ttk.Label(selection_frame, text="Color Space:", style=self.theme_manager.get_label_style()).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.color_space_var = tk.StringVar(value=self.color_space)
+        color_space_combo = ttk.Combobox(selection_frame, textvariable=self.color_space_var, 
+                                       values=color_spaces, state="readonly", width=15,
+                                       style=self.theme_manager.get_combobox_style())
+        color_space_combo.pack(side=tk.LEFT, padx=(0, 10))
+        color_space_combo.bind('<<ComboboxSelected>>', self._on_colorspace_change)
+        
+        # Description label that updates with selection
+        self.desc_var = tk.StringVar()
+        desc_label = ttk.Label(selection_frame, textvariable=self.desc_var, font=("Arial", 8), 
+                             style=self.theme_manager.get_label_style())
+        desc_label.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # Enhanced color space descriptions
+        self.color_space_descriptions = {
+            "BGR": "BGR - Standard OpenCV color format",
+            "HSV": "HSV - Best for color-based detection",
+            "HLS": "HLS - Alternative color representation", 
+            "Lab": "Lab - Perceptually uniform color space",
+            "Luv": "Luv - Another perceptually uniform space",
+            "YCrCb": "YCrCb - Luma-chroma (JPEG standard)",
+            "XYZ": "XYZ - Device-independent color space",
+            "Grayscale": "Grayscale - Single intensity channel"
+        }
+        
+        # Set initial description
+        self.desc_var.set(self.color_space_descriptions.get(self.color_space, ""))
+        
+        # Determine if grayscale image
+        if self.viewer._internal_images:
+            current_idx = self.viewer.trackbar.parameters.get('show', 0)
+            image, _ = self.viewer._internal_images[current_idx]
+            is_grayscale = len(image.shape) == 2
+            
+            if is_grayscale:
+                note_text = "Note: Grayscale image detected - color spaces will show converted results"
+                note_label = ttk.Label(colorspace_frame, text=note_text, font=("Arial", 7), 
+                                     style=self.theme_manager.get_label_style())
+                note_label.pack(pady=2)
+
+    def _on_colorspace_change(self, event=None):
+        """Handle colorspace selection changes."""
+        new_colorspace = self.color_space_var.get()
+        
+        # Update description
+        self.desc_var.set(self.color_space_descriptions.get(new_colorspace, ""))
+        
+        # If colorspace actually changed, recreate the window content
+        if new_colorspace != self.color_space:
+            self.color_space = new_colorspace
+            self.viewer.log(f"Changed colorspace to: {new_colorspace}")
+            
+            # Update window title
+            self.root.title(f"Thresholding Controls - {self.color_space}")
+            
+            # Recreate the threshold viewer with new colorspace
+            self._recreate_threshold_viewer()
+            
+            # Update trackbars for new colorspace
+            self._recreate_method_controls()
+            
+            # Update the threshold processing
+            self.update_threshold()
+    
+    def _recreate_threshold_viewer(self):
+        """Recreate the threshold viewer for the new colorspace."""
+        if self.threshold_viewer:
+            self.threshold_viewer.cleanup_viewer()
+        
+        # Get initial method for the new colorspace
+        initial_method = "Simple" if self.color_space == "Grayscale" else "Range"
+        initial_trackbars = self._get_trackbar_configs_for_method(initial_method)
+        
+        # Update viewer config
+        self.threshold_viewer.config.trackbar = initial_trackbars
+        self.threshold_viewer.config.process_window_name = f"Thresholded Process - {self.color_space}"
+        self.threshold_viewer.config.trackbar_window_name = f"Thresholding Trackbars - {self.color_space}"
+        
+        # Recreate the viewer
+        self.threshold_viewer.setup_viewer(image_processor_func=self._threshold_processor)
+        self.trackbar_manager = self.threshold_viewer.trackbar
+    
+    def _recreate_method_controls(self):
+        """Recreate method controls for the new colorspace."""
+        # Remove existing method controls (find all LabelFrames except colorspace)
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.LabelFrame) and widget.cget('text') not in ['Color Space Selection']:
+                widget.destroy()
+        
+        # Also remove any separators after the colorspace section
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Separator):
+                widget.destroy()
+        
+        # Recreate separator
+        separator = ttk.Separator(self.root, orient='horizontal')
+        separator.pack(fill='x', padx=10, pady=5)
+        
+        # Recreate method controls based on new colorspace
+        if self.color_space == "Grayscale":
+            self._create_grayscale_method_controls()
+        else:
+            self._create_color_method_controls()
+        
+        # Recreate other sections
+        self._create_status_section()
+        self._create_buttons_section()
+        
+        # Update current method
+        self.current_method = "Simple" if self.color_space == "Grayscale" else "Range"
+        
+    def _create_grayscale_method_controls(self):
+        """Create method controls for grayscale."""
+        # Reset UI variables
+        self.threshold_method_var = None
+        self.threshold_type_var = None
+        self.adaptive_method_var = None
+        
+        # Thresholding method selection
+        method_frame = ttk.LabelFrame(self.root, text="Thresholding Method", style=self.theme_manager.get_frame_style())
+        method_frame.pack(padx=10, pady=5, fill="x")
+        
+        self.threshold_method_var = tk.StringVar(value="Simple")
+        methods = ["Simple", "Adaptive", "Otsu", "Triangle"]
+        for method in methods:
+            ttk.Radiobutton(method_frame, text=method, variable=self.threshold_method_var, 
+                           value=method, command=self.on_method_change).pack(anchor="w")
+        
+        # Threshold type selection
+        type_frame = ttk.LabelFrame(self.root, text="Threshold Type", style=self.theme_manager.get_frame_style())
+        type_frame.pack(padx=10, pady=5, fill="x")
+        
+        self.threshold_type_var = tk.StringVar(value="BINARY")
+        types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
+        self.threshold_type_combo = ttk.Combobox(type_frame, textvariable=self.threshold_type_var, 
+                                                values=types, state="readonly", width=15,
+                                                style=self.theme_manager.get_combobox_style())
+        self.threshold_type_combo.pack(padx=5, pady=5)
+        self.threshold_type_combo.bind("<<ComboboxSelected>>", self._on_dropdown_threshold_type_change)
+        
+        # Adaptive method selection (initially hidden)
+        self.adaptive_frame = ttk.LabelFrame(self.root, text="Adaptive Method", style=self.theme_manager.get_frame_style())
+        self.adaptive_method_var = tk.StringVar(value="MEAN_C")
+        adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
+        self.adaptive_method_combo = ttk.Combobox(self.adaptive_frame, textvariable=self.adaptive_method_var,
+                                                 values=adaptive_methods, state="readonly", width=15,
+                                                 style=self.theme_manager.get_combobox_style())
+        self.adaptive_method_combo.pack(padx=5, pady=5)
+        self.adaptive_method_combo.bind("<<ComboboxSelected>>", self._on_dropdown_adaptive_method_change)
+    
+    def _create_color_method_controls(self):
+        """Create method controls for color spaces."""
+        # Reset UI variables
+        self.threshold_method_var = None
+        self.threshold_type_var = None
+        self.adaptive_method_var = None
+        
+        # Color space thresholding method selection
+        method_frame = ttk.LabelFrame(self.root, text="Thresholding Method", style=self.theme_manager.get_frame_style())
+        method_frame.pack(padx=10, pady=5, fill="x")
+        
+        self.threshold_method_var = tk.StringVar(value="Range")
+        methods = ["Range", "Simple", "Otsu", "Triangle", "Adaptive"]
+        for method in methods:
+            ttk.Radiobutton(method_frame, text=method, variable=self.threshold_method_var, 
+                           value=method, command=self.on_color_method_change).pack(anchor="w")
+        
+        # Threshold type selection for color spaces
+        type_frame = ttk.LabelFrame(self.root, text="Threshold Type", style=self.theme_manager.get_frame_style())
+        type_frame.pack(padx=10, pady=5, fill="x")
+        
+        self.threshold_type_var = tk.StringVar(value="BINARY")
+        types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
+        self.threshold_type_combo = ttk.Combobox(type_frame, textvariable=self.threshold_type_var, 
+                                                values=types, state="readonly", width=15,
+                                                style=self.theme_manager.get_combobox_style())
+        self.threshold_type_combo.pack(padx=5, pady=5)
+        self.threshold_type_combo.bind("<<ComboboxSelected>>", self._on_dropdown_threshold_type_change)
+        
+        # Advanced controls frame (initially hidden)
+        self.advanced_controls_frame = ttk.LabelFrame(self.root, text="Advanced Controls", style=self.theme_manager.get_frame_style())
+        
+        # Adaptive method selection for color spaces
+        self.adaptive_method_var = tk.StringVar(value="MEAN_C")
+        adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
+        ttk.Label(self.advanced_controls_frame, text="Adaptive Method:", style=self.theme_manager.get_label_style()).grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        self.adaptive_method_combo = ttk.Combobox(self.advanced_controls_frame, textvariable=self.adaptive_method_var,
+                                                 values=adaptive_methods, state="readonly", width=12,
+                                                 style=self.theme_manager.get_combobox_style())
+        self.adaptive_method_combo.grid(row=0, column=1, padx=5, pady=2)
+        self.adaptive_method_combo.bind("<<ComboboxSelected>>", self._on_dropdown_adaptive_method_change)
+    
+    def _create_status_section(self):
+        """Create status display section."""
+        # Status display frame
+        status_frame = ttk.LabelFrame(self.root, text="Current Parameters", style=self.theme_manager.get_frame_style())
+        status_frame.pack(padx=10, pady=5, fill="x")
+        
+        self.status_text = tk.Text(status_frame, height=4, width=40, font=("Consolas", 8))
+        self.status_text.pack(padx=5, pady=5, fill="x")
+        self.status_text.config(state=tk.DISABLED)  # Read-only
+    
+    def _create_buttons_section(self):
+        """Create buttons section."""
+        button_frame = ttk.Frame(self.root, style=self.theme_manager.get_frame_style())
+        button_frame.pack(padx=10, pady=10)
+        
+        # Add preset and save/load buttons
+        ttk.Button(button_frame, text="Presets ▼", command=self._show_presets,
+                  style=self.theme_manager.get_button_style()).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Save Config", command=self._save_config,
+                  style=self.theme_manager.get_button_style()).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Load Config", command=self._load_config,
+                  style=self.theme_manager.get_button_style()).pack(side=tk.LEFT, padx=5)
         
     def _create_threshold_viewer(self):
         """Create a dedicated ImageViewer for thresholding with full zoom/pan functionality."""
@@ -1017,13 +1507,24 @@ class ThresholdingWindow:
 
     def create_trackbars(self):
         """Initialize trackbar definitions and create initial set."""
-        if self.color_space == "Grayscale":
-            self._define_grayscale_trackbars()
-        else:
-            self._define_color_trackbars()
-        
-        # Set initial method - trackbars are already created in threshold viewer
+        if not self.threshold_viewer:
+            return
+            
+        # Get the appropriate trackbars for the colorspace and initial method
         initial_method = "Simple" if self.color_space == "Grayscale" else "Range"
+        trackbar_configs = self._get_trackbar_configs_for_method(initial_method)
+        
+        # Update the threshold viewer config with the new trackbars
+        self.threshold_viewer.config.trackbar = trackbar_configs
+        
+        # Recreate the threshold viewer with proper trackbars
+        self.threshold_viewer.cleanup_viewer()
+        self.threshold_viewer.setup_viewer(image_processor_func=self._threshold_processor)
+        
+        # Update trackbar manager reference
+        self.trackbar_manager = self.threshold_viewer.trackbar
+        
+        # Set current method
         self.current_method = initial_method
         
         # Trigger initial threshold update
@@ -1684,8 +2185,12 @@ class ThresholdingWindow:
                 if hasattr(self, 'viewer'):
                     self.viewer.log(f"Error cleaning up threshold viewer: {e}")
         
-        if self.window_created and self.root:
-            self.root.destroy()
+        # Only destroy tkinter root if it exists (for full UI mode)
+        if self.window_created and hasattr(self, 'root') and self.root:
+            try:
+                self.root.destroy()
+            except:
+                pass
             self.root = None
             
         self.window_created = False
