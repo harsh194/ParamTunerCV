@@ -1075,7 +1075,6 @@ class ThresholdingWindow:
                         # Apply zoom and pan transformations similar to main viewer
                         display_image = viewer._apply_zoom_pan_transform(current_image)
                         
-                        
                         # Display the processed image
                         cv2.imshow(viewer.config.process_window_name, display_image)
                 
@@ -1087,7 +1086,12 @@ class ThresholdingWindow:
                 elif key == ord('r'):
                     # Reset zoom and pan
                     viewer.size_ratio = 1.0
-                    viewer.show_area = [0, 0, viewer.config.screen_width, viewer.config.screen_height]
+                    viewer.show_area[0], viewer.show_area[1] = 0, 0
+                    # Reset window size to match original image dimensions (same as main ImageViewer)
+                    if viewer.current_image_dims:
+                        viewer.windows.resize_process_window(viewer.current_image_dims[1], viewer.current_image_dims[0])
+                    else:
+                        viewer.windows.resize_process_window(viewer.config.screen_width, viewer.config.screen_height)
                     # Silent view reset
                     
             except Exception as e:
@@ -1098,7 +1102,7 @@ class ThresholdingWindow:
         return process_frame_method
         
     def _create_zoom_pan_method(self, viewer):
-        """Create zoom and pan transformation method similar to main ImageViewer."""
+        """Create zoom and pan transformation method identical to main ImageViewer."""
         def zoom_pan_transform(image):
             import cv2
             import numpy as np
@@ -1110,56 +1114,68 @@ class ThresholdingWindow:
             orig_h, orig_w = image.shape[:2]
             viewer.current_image_dims = image.shape
             
-            # Get viewport dimensions
+            # Calculate scaled dimensions (same as main ImageViewer)
+            scaled_w, scaled_h = int(orig_w * viewer.size_ratio), int(orig_h * viewer.size_ratio)
+            
+            if scaled_w <= 0 or scaled_h <= 0: 
+                min_dim_on_screen = 10 
+                viewer.size_ratio = max(viewer.config.min_size_ratio, float(min_dim_on_screen) / max(orig_w, orig_h, 1))
+                scaled_w = max(min_dim_on_screen, int(orig_w * viewer.size_ratio))
+                scaled_h = max(min_dim_on_screen, int(orig_h * viewer.size_ratio))
+            
+            # Start with default viewport dimensions
             view_w, view_h = viewer.config.screen_width, viewer.config.screen_height
             
-            # Apply zoom scaling
-            scaled_w = int(orig_w * viewer.size_ratio)
-            scaled_h = int(orig_h * viewer.size_ratio)
+            # Handle window resizing (same as main ImageViewer)
+            try: 
+                _wx, _wy, current_win_w, current_win_h = cv2.getWindowImageRect(viewer.config.process_window_name)
+                max_win_w = viewer.config.desktop_resolution[0] if viewer.config.desktop_resolution else viewer.config.screen_width * 2
+                max_win_h = viewer.config.desktop_resolution[1] if viewer.config.desktop_resolution else viewer.config.screen_height * 2
+                target_win_w = max(viewer.config.min_window_size[0], min(scaled_w, max_win_w))
+                target_win_h = max(viewer.config.min_window_size[1], min(scaled_h, max_win_h))
+
+                if abs(current_win_w - target_win_w) > 1 or abs(current_win_h - target_win_h) > 1 :
+                    viewer.windows.resize_process_window(target_win_w, target_win_h)
+                # Get ACTUAL window size after resizing (key difference!)
+                _wx, _wy, view_w, view_h = cv2.getWindowImageRect(viewer.config.process_window_name)
+            except cv2.error: 
+                pass 
+            view_w, view_h = max(1, view_w), max(1, view_h)
+
+            # Scale the image (same as main ImageViewer)
+            scaled_image_for_roi = cv2.resize(image, (scaled_w, scaled_h), interpolation=cv2.INTER_NEAREST)
             
-            # Scale the image if needed
-            if viewer.size_ratio != 1.0 and scaled_w > 0 and scaled_h > 0:
-                scaled_image = cv2.resize(image, (scaled_w, scaled_h))
-            else:
-                scaled_image = image
-                scaled_w, scaled_h = orig_w, orig_h
-            
-            # Handle viewport clipping - constrain show_area to valid bounds
+            # Handle viewport clipping with ACTUAL window dimensions
             max_show_x = max(0, scaled_w - view_w)
             max_show_y = max(0, scaled_h - view_h)
             viewer.show_area[0] = max(0, min(viewer.show_area[0], max_show_x))
             viewer.show_area[1] = max(0, min(viewer.show_area[1], max_show_y))
             
-            # Extract the viewable region
+            # Extract the viewable region (same as main ImageViewer)
             roi_x_start = viewer.show_area[0]
             roi_y_start = viewer.show_area[1]
             roi_w_actual = min(view_w, scaled_w - roi_x_start)
             roi_h_actual = min(view_h, scaled_h - roi_y_start)
             
-            # Extract the viewport from scaled image
             if roi_w_actual > 0 and roi_h_actual > 0:
                 try:
-                    viewport_image = scaled_image[roi_y_start:roi_y_start + roi_h_actual, 
-                                                roi_x_start:roi_x_start + roi_w_actual]
+                    viewport_image = scaled_image_for_roi[roi_y_start:roi_y_start + roi_h_actual, 
+                                                        roi_x_start:roi_x_start + roi_w_actual]
                 except Exception as e:
                     viewer.log(f"Viewport extraction error: {e}")
                     return image
                     
-                # If viewport is smaller than view window, pad it
-                if viewport_image.shape[0] < view_h or viewport_image.shape[1] < view_w:
-                    # Create a black background of view size
-                    if len(image.shape) == 3:
-                        padded_image = np.zeros((view_h, view_w, image.shape[2]), dtype=image.dtype)
-                    else:
-                        padded_image = np.zeros((view_h, view_w), dtype=image.dtype)
-                    
-                    # Place the viewport image in the padded image
-                    padded_image[:viewport_image.shape[0], :viewport_image.shape[1]] = viewport_image
-                    return padded_image
+                # Create display canvas with exact viewport dimensions
+                if len(image.shape) == 3:
+                    display_canvas = np.zeros((view_h, view_w, image.shape[2]), dtype=image.dtype)
                 else:
-                    return viewport_image
+                    display_canvas = np.zeros((view_h, view_w), dtype=image.dtype)
+                
+                # Place the viewport image in the canvas
+                display_canvas[:viewport_image.shape[0], :viewport_image.shape[1]] = viewport_image
+                return display_canvas
             else:
-                # Return a black image if no valid viewport
+                # Return black canvas if no valid viewport
                 if len(image.shape) == 3:
                     return np.zeros((view_h, view_w, image.shape[2]), dtype=image.dtype)
                 else:
