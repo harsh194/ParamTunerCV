@@ -57,6 +57,7 @@ class ImageViewer:
             (self.config.text_window_height, self.config.text_window_width, 3), 255, dtype=np.uint8
         )
         self.log_texts: List[str] = []
+        self.logged_messages: set = set()  # Track unique messages to prevent duplicates
         self.initial_window_size: Tuple[int, int] = (self.config.screen_width, self.config.screen_height)
         self.user_image_processor: Optional[ImageProcessor] = None
         self.image_processing_func_internal: Optional[ImageProcessor] = None
@@ -229,12 +230,20 @@ class ImageViewer:
 
     def clear_log(self):
         self.log_texts = []
+        self.logged_messages.clear()  # Clear the deduplication set as well
         self.text_image = np.full((self.config.text_window_height, self.config.text_window_width, 3), 255, dtype=np.uint8)
 
     def log(self, message: str):
         if self.config.enable_debug:
             max_log_entries = 200 
             message_str = str(message)
+            
+            # Check if this message has already been logged (deduplication)
+            if message_str in self.logged_messages:
+                return  # Don't log duplicate messages
+            
+            # Add message to set of logged messages
+            self.logged_messages.add(message_str)
             char_width_approx = 8 
             wrap_width = (self.config.text_window_width - 20) // char_width_approx
             if wrap_width <=0: wrap_width = 10
@@ -773,6 +782,7 @@ class ImageViewer:
         self._cached_scaled_image = None
         self.text_image = None
         self.log_texts.clear()
+        self.logged_messages.clear()  # Clear deduplication set on cleanup
         self._should_continue_loop = False
 
     def signal_params_changed(self):
