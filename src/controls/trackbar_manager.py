@@ -39,6 +39,315 @@ def make_roi_trackbars() -> List[Dict[str, Any]]:
         make_trackbar("RectHeight", "roi_height", 1000, 100, "roi_height")
     ]
 
+# ============================================================================
+# MORPHOLOGICAL OPERATIONS TRACKBARS
+# ============================================================================
+
+def make_morphology_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.morphologyEx()"""
+    return [
+        make_int_trackbar("Morph Op", "morph_op", 6, 2),  # cv2.MORPH_OPENING
+        make_odd_trackbar("Kernel Size", "kernel_size", 31, 5),
+        make_int_trackbar("Shape", "kernel_shape", 2, 0),  # cv2.MORPH_RECT
+        make_int_trackbar("Iterations", "iterations", 10, 1)
+    ]
+
+def make_erode_dilate_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.erode() and cv2.dilate()"""
+    return [
+        make_int_trackbar("Operation", "operation", 1, 0),  # 0=erode, 1=dilate
+        make_odd_trackbar("Kernel Size", "kernel_size", 31, 5),
+        make_int_trackbar("Shape", "kernel_shape", 2, 0),  # cv2.MORPH_RECT
+        make_int_trackbar("Iterations", "iterations", 10, 1)
+    ]
+
+# ============================================================================
+# EDGE DETECTION TRACKBARS
+# ============================================================================
+
+def make_canny_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.Canny()"""
+    return [
+        make_int_trackbar("Lower Threshold", "lower_threshold", 300, 50),
+        make_int_trackbar("Upper Threshold", "upper_threshold", 300, 150),
+        make_odd_trackbar("Aperture Size", "aperture_size", 7, 3),
+        make_int_trackbar("L2 Gradient", "l2_gradient", 1, 0)  # boolean
+    ]
+
+def make_sobel_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.Sobel()"""
+    return [
+        make_int_trackbar("dx", "dx", 2, 1),
+        make_int_trackbar("dy", "dy", 2, 0),
+        make_odd_trackbar("Kernel Size", "ksize", 31, 3),
+        make_int_trackbar("Scale", "scale", 10, 1),
+        make_int_trackbar("Delta", "delta", 100, 0)
+    ]
+
+def make_laplacian_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.Laplacian()"""
+    return [
+        make_odd_trackbar("Kernel Size", "ksize", 31, 1),
+        make_int_trackbar("Scale", "scale", 10, 1),
+        make_int_trackbar("Delta", "delta", 100, 0)
+    ]
+
+def make_scharr_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.Scharr()"""
+    return [
+        make_int_trackbar("dx", "dx", 1, 1),
+        make_int_trackbar("dy", "dy", 1, 0),
+        make_int_trackbar("Scale", "scale", 10, 1),
+        make_int_trackbar("Delta", "delta", 100, 0)
+    ]
+
+# ============================================================================
+# FILTERING TRACKBARS
+# ============================================================================
+
+def make_gaussian_blur_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.GaussianBlur()"""
+    return [
+        make_odd_trackbar("Kernel Size X", "ksize_x", 99, 5),
+        make_odd_trackbar("Kernel Size Y", "ksize_y", 99, 5),
+        make_int_trackbar("Sigma X", "sigma_x", 100, 0),  # 0 = calculate from kernel size
+        make_int_trackbar("Sigma Y", "sigma_y", 100, 0)   # 0 = calculate from kernel size
+    ]
+
+def make_bilateral_filter_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.bilateralFilter()"""
+    return [
+        make_int_trackbar("d", "d", 20, 5),
+        make_int_trackbar("Sigma Color", "sigma_color", 150, 80),
+        make_int_trackbar("Sigma Space", "sigma_space", 150, 80)
+    ]
+
+def make_median_blur_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.medianBlur()"""
+    return [
+        make_odd_trackbar("Kernel Size", "ksize", 31, 5)
+    ]
+
+def make_blur_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.blur()"""
+    return [
+        make_int_trackbar("Kernel Width", "ksize_width", 31, 5),
+        make_int_trackbar("Kernel Height", "ksize_height", 31, 5)
+    ]
+
+# ============================================================================
+# THRESHOLDING TRACKBARS
+# ============================================================================
+
+def make_threshold_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.threshold()"""
+    return [
+        make_int_trackbar("Threshold", "thresh", 255, 128),
+        make_int_trackbar("Max Value", "maxval", 255, 255),
+        make_int_trackbar("Type", "type", 4, 0)  # cv2.THRESH_BINARY
+    ]
+
+def make_adaptive_threshold_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.adaptiveThreshold()"""
+    return [
+        make_int_trackbar("Max Value", "maxValue", 255, 255),
+        make_int_trackbar("Adaptive Method", "adaptiveMethod", 1, 0),  # cv2.ADAPTIVE_THRESH_MEAN_C
+        make_int_trackbar("Threshold Type", "thresholdType", 1, 0),   # cv2.THRESH_BINARY
+        make_odd_trackbar("Block Size", "blockSize", 99, 11),
+        make_int_trackbar("C", "C", 50, 2)
+    ]
+
+# ============================================================================
+# FEATURE DETECTION TRACKBARS
+# ============================================================================
+
+def make_hough_lines_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.HoughLines()"""
+    return [
+        make_int_trackbar("Rho", "rho", 5, 1),
+        make_int_trackbar("Theta (deg)", "theta_deg", 180, 1),
+        make_int_trackbar("Threshold", "threshold", 200, 100)
+    ]
+
+def make_hough_lines_p_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.HoughLinesP()"""
+    return [
+        make_int_trackbar("Rho", "rho", 5, 1),
+        make_int_trackbar("Theta (deg)", "theta_deg", 180, 1),
+        make_int_trackbar("Threshold", "threshold", 200, 100),
+        make_int_trackbar("Min Line Length", "minLineLength", 200, 50),
+        make_int_trackbar("Max Line Gap", "maxLineGap", 50, 10)
+    ]
+
+def make_hough_circles_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.HoughCircles()"""
+    return [
+        make_int_trackbar("DP", "dp", 10, 1),
+        make_int_trackbar("Min Dist", "minDist", 200, 50),
+        make_int_trackbar("Param1", "param1", 300, 100),
+        make_int_trackbar("Param2", "param2", 100, 30),
+        make_int_trackbar("Min Radius", "minRadius", 100, 0),
+        make_int_trackbar("Max Radius", "maxRadius", 200, 0)
+    ]
+
+def make_good_features_to_track_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.goodFeaturesToTrack()"""
+    return [
+        make_int_trackbar("Max Corners", "maxCorners", 1000, 100),
+        make_int_trackbar("Quality Level", "qualityLevel", 100, 1),  # divide by 1000
+        make_int_trackbar("Min Distance", "minDistance", 50, 10),
+        make_odd_trackbar("Block Size", "blockSize", 23, 3),
+        make_int_trackbar("Use Harris", "useHarrisDetector", 1, 0),
+        make_int_trackbar("Harris k", "k", 40, 4)  # divide by 1000
+    ]
+
+def make_corner_harris_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.cornerHarris()"""
+    return [
+        make_odd_trackbar("Block Size", "blockSize", 23, 2),
+        make_odd_trackbar("Ksize", "ksize", 31, 3),
+        make_int_trackbar("k", "k", 40, 4),  # divide by 100
+        make_int_trackbar("Threshold", "threshold", 100, 1)  # for result > threshold
+    ]
+
+# ============================================================================
+# COLOR SPACE TRACKBARS
+# ============================================================================
+
+def make_hsv_range_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for HSV color filtering with cv2.inRange()"""
+    return [
+        make_int_trackbar("H Min", "h_min", 179, 0),
+        make_int_trackbar("S Min", "s_min", 255, 0),
+        make_int_trackbar("V Min", "v_min", 255, 0),
+        make_int_trackbar("H Max", "h_max", 179, 179),
+        make_int_trackbar("S Max", "s_max", 255, 255),
+        make_int_trackbar("V Max", "v_max", 255, 255)
+    ]
+
+def make_lab_range_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for LAB color filtering"""
+    return [
+        make_int_trackbar("L Min", "l_min", 255, 0),
+        make_int_trackbar("A Min", "a_min", 255, 0),
+        make_int_trackbar("B Min", "b_min", 255, 0),
+        make_int_trackbar("L Max", "l_max", 255, 255),
+        make_int_trackbar("A Max", "a_max", 255, 255),
+        make_int_trackbar("B Max", "b_max", 255, 255)
+    ]
+
+# ============================================================================
+# CONTOUR TRACKBARS
+# ============================================================================
+
+def make_find_contours_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.findContours()"""
+    return [
+        make_int_trackbar("Threshold", "threshold", 255, 128),
+        make_int_trackbar("Mode", "mode", 3, 1),  # cv2.RETR_LIST
+        make_int_trackbar("Method", "method", 4, 2),  # cv2.CHAIN_APPROX_SIMPLE
+        make_int_trackbar("Min Area", "min_area", 10000, 100),
+        make_int_trackbar("Max Area", "max_area", 50000, 10000)
+    ]
+
+def make_contour_approximation_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.approxPolyDP()"""
+    return [
+        make_int_trackbar("Epsilon Factor", "epsilon_factor", 50, 2),  # divide by 1000
+        make_int_trackbar("Closed", "closed", 1, 1)  # boolean
+    ]
+
+# ============================================================================
+# GEOMETRIC TRANSFORMATION TRACKBARS
+# ============================================================================
+
+def make_rotation_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for rotation with cv2.getRotationMatrix2D()"""
+    return [
+        make_int_trackbar("Angle", "angle", 360, 0),
+        make_int_trackbar("Scale", "scale", 300, 100),  # divide by 100
+        make_int_trackbar("Center X", "center_x", 1000, 500),
+        make_int_trackbar("Center Y", "center_y", 1000, 500)
+    ]
+
+def make_affine_transform_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for affine transformation"""
+    return [
+        make_int_trackbar("Scale X", "scale_x", 300, 100),  # divide by 100
+        make_int_trackbar("Scale Y", "scale_y", 300, 100),  # divide by 100
+        make_int_trackbar("Translate X", "translate_x", 500, 250),  # subtract 250
+        make_int_trackbar("Translate Y", "translate_y", 500, 250),  # subtract 250
+        make_int_trackbar("Shear X", "shear_x", 100, 50),  # subtract 50, divide by 100
+        make_int_trackbar("Shear Y", "shear_y", 100, 50)   # subtract 50, divide by 100
+    ]
+
+def make_perspective_transform_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for perspective transformation corner points"""
+    return [
+        make_int_trackbar("Top Left X", "tl_x", 1000, 100),
+        make_int_trackbar("Top Left Y", "tl_y", 1000, 100),
+        make_int_trackbar("Top Right X", "tr_x", 1000, 300),
+        make_int_trackbar("Top Right Y", "tr_y", 1000, 100),
+        make_int_trackbar("Bottom Right X", "br_x", 1000, 300),
+        make_int_trackbar("Bottom Right Y", "br_y", 1000, 300),
+        make_int_trackbar("Bottom Left X", "bl_x", 1000, 100),
+        make_int_trackbar("Bottom Left Y", "bl_y", 1000, 300)
+    ]
+
+# ============================================================================
+# HISTOGRAM TRACKBARS
+# ============================================================================
+
+def make_histogram_equalization_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for histogram equalization"""
+    return [
+        make_int_trackbar("Method", "method", 2, 0),  # 0=none, 1=global, 2=CLAHE
+        make_int_trackbar("Clip Limit", "clipLimit", 40, 20),  # divide by 10
+        make_int_trackbar("Tile Grid X", "tileGridSize_x", 16, 8),
+        make_int_trackbar("Tile Grid Y", "tileGridSize_y", 16, 8)
+    ]
+
+# ============================================================================
+# ADVANCED OPERATIONS TRACKBARS
+# ============================================================================
+
+def make_watershed_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for watershed segmentation"""
+    return [
+        make_int_trackbar("Threshold", "threshold", 255, 128),
+        make_int_trackbar("Distance Transform", "dist_transform", 2, 1),  # cv2.DIST_L2
+        make_int_trackbar("Noise Removal", "noise_removal", 10, 3),
+        make_int_trackbar("Sure BG", "sure_bg", 20, 10),
+        make_int_trackbar("Sure FG", "sure_fg", 70, 50)
+    ]
+
+def make_grabcut_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for GrabCut segmentation"""
+    return [
+        make_int_trackbar("Iterations", "iterCount", 10, 5),
+        make_int_trackbar("Mode", "mode", 3, 0),  # cv2.GC_INIT_WITH_RECT
+        make_roi_trackbars()[0],  # Use ROI trackbars for rectangle
+        make_roi_trackbars()[1],
+        make_roi_trackbars()[2],
+        make_roi_trackbars()[3]
+    ]
+
+def make_template_matching_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for cv2.matchTemplate()"""
+    return [
+        make_int_trackbar("Method", "method", 5, 1),  # cv2.TM_CCOEFF_NORMED
+        make_int_trackbar("Threshold", "threshold", 100, 80)  # divide by 100
+    ]
+
+def make_optical_flow_trackbars() -> List[Dict[str, Any]]:
+    """Create trackbars for Lucas-Kanade optical flow"""
+    return [
+        make_odd_trackbar("Win Size", "winSize", 31, 15),
+        make_int_trackbar("Max Level", "maxLevel", 5, 2),
+        make_int_trackbar("Max Count", "maxCount", 100, 10),
+        make_int_trackbar("Epsilon", "epsilon", 30, 3)  # divide by 1000
+    ]
+
 class TrackbarManager:
     """Manages trackbar creation and callbacks."""
     def __init__(self, window_name: str):
