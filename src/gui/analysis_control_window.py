@@ -6,7 +6,6 @@ from .thresholding_manager import ThresholdingManager
 from .theme_manager import ThemeManager
 from .enhanced_widgets import ComboboxWithIndicator
 from .enhanced_export_dialog import EnhancedExportDialog
-from .plot_customization_dialog import PlotCustomizationDialog
 
 TKINTER_AVAILABLE = True
 try:
@@ -286,15 +285,11 @@ class AnalysisControlWindow:
         Tooltip(prof_btn, "Display pixel profiles of the selected lines (Shift+P)")
         self.action_buttons['profiles'] = prof_btn
 
-        thresh_btn = ttk.Button(analysis_grid, text="🌡️ Thresholding", command=self._open_thresholding_window, style=btn_style)
-        thresh_btn.grid(row=1, column=0, padx=3, pady=3, sticky="ew")
+        thresh_btn = ttk.Button(analysis_frame, text="🌡️ Thresholding", command=self._open_thresholding_window, style=btn_style)
+        thresh_btn.pack(fill='x', pady=2)
         Tooltip(thresh_btn, "Open the thresholding window for image segmentation")
         self.action_buttons['thresholding'] = thresh_btn
         
-        customize_btn = ttk.Button(analysis_grid, text="🎨 Customize Plots", command=self._open_plot_customization, style=btn_style)
-        customize_btn.grid(row=1, column=1, padx=3, pady=3, sticky="ew")
-        Tooltip(customize_btn, "Customize plot appearance, colors, and save presets")
-        self.action_buttons['customize_plots'] = customize_btn
 
     def _create_drawing_section(self, parent_frame):
         drawing_frame = self._create_section_frame(parent_frame, "Drawing Management")
@@ -722,20 +717,6 @@ class AnalysisControlWindow:
         
         self.thresholding_manager.open_colorspace_selection_window()
         
-    def _open_plot_customization(self):
-        """Open the plot customization dialog."""
-        # Set as active button in analysis section
-        self._set_active_button('analysis', 'customize_plots')
-        
-        try:
-            plot_dialog = PlotCustomizationDialog(self.root, self.theme_manager, plot_type="histogram")
-            plot_dialog.show(on_apply=self._on_plot_settings_apply)
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open plot customization: {str(e)}")
-            print(f"Plot customization error: {str(e)}")
-
-    def _on_plot_settings_apply(self, settings):
-        pass
 
     def _on_closing(self):
         self.thresholding_manager.cleanup_windows()

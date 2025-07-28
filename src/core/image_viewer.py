@@ -3,7 +3,6 @@ import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable, Protocol, TypeVar
 import textwrap
 import traceback
-# Removed threading import - not needed for single-threaded architecture
 
 from ..config.viewer_config import ViewerConfig
 from ..events.mouse_handler import MouseHandler
@@ -65,7 +64,6 @@ class ImageViewer:
         self._cached_scaled_image = None
         self._cached_size_ratio = None
         self._cached_show_area = None
-        # Removed locks - not needed for single-threaded architecture
         self._event_handlers: Dict[str, List[Callable]] = {}
         
         self._auto_setup()

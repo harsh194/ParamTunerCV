@@ -476,30 +476,9 @@ control_window.show()
 # - Analysis function quick access (histogram, pixel profiles)
 # - Selection management for ROIs, lines, and polygons
 # - Export controls for data and coordinates
-# - Plot customization access
 # - Keyboard shortcuts: R (Rectangle), L (Line), P (Polygon), H (Histogram), Shift+P (Profiles)
 ```
 
-### Plot Customization
-```python
-# Customize plot appearance
-plot_settings = {
-    "figure_size": (12, 8),
-    "dpi": 150,
-    "grid": True,
-    "grid_alpha": 0.3,
-    "title_fontsize": 16,
-    "axis_fontsize": 14,
-    "line_width": 3,
-    "colors": {
-        "red": "#FF0000",
-        "green": "#00FF00", 
-        "blue": "#0000FF"
-    }
-}
-
-viewer.plot_analyzer.update_plot_settings("histogram", plot_settings)
-```
 
 ## 🔧 Performance Optimization
 
