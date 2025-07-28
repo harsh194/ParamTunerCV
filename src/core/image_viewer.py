@@ -569,7 +569,15 @@ class ImageViewer:
             # Check if text window exists before trying to access it
             if cv2.getWindowProperty(self.config.text_window_name, cv2.WND_PROP_VISIBLE) < 0:
                 return
-            _x, _y, view_w, view_h = cv2.getWindowImageRect(self.config.text_window_name)
+            
+            # Safely get window rectangle with error handling
+            try:
+                _x, _y, view_w, view_h = cv2.getWindowImageRect(self.config.text_window_name)
+            except cv2.error as e:
+                # Window was closed or destroyed, skip text window update
+                if "NULL window" in str(e):
+                    return
+                raise  # Re-raise if it's a different error
             view_h = max(1, view_h) 
             text_img_h, text_img_w = self.text_image.shape[:2]
             max_scroll = max(0, text_img_h - view_h)
@@ -589,7 +597,15 @@ class ImageViewer:
                 text_canvas = np.full((view_h, text_img_w, 3), 255, dtype=text_roi_content.dtype)
                 paste_h, paste_w = text_roi_content.shape[:2]
                 text_canvas[0:paste_h, 0:paste_w] = text_roi_content
-            cv2.imshow(self.config.text_window_name, text_canvas)
+            # Safely display text canvas with error handling
+            try:
+                cv2.imshow(self.config.text_window_name, text_canvas)
+            except cv2.error as e:
+                # Text window was closed or destroyed during operation
+                if "NULL window" in str(e) or "window doesn't exist" in str(e):
+                    return
+                raise  # Re-raise if it's a different error
+                
         except Exception as e: 
             print(f"CRITICAL: Text window display error: {e}\n{traceback.format_exc()}")
 
@@ -775,7 +791,11 @@ class ImageViewer:
         self.windows.destroy_all_windows()
         if self.analysis_window:
             self.analysis_window.destroy_window()
-        self.analyzer.close_all_plots()
+        # Use cleanup method instead of just close_all_plots to properly stop threading
+        if hasattr(self.analyzer, 'cleanup'):
+            self.analyzer.cleanup()
+        else:
+            self.analyzer.close_all_plots()  # Fallback for older analyzer versions
         self._internal_images.clear()
         self._cached_scaled_image = None
         self.text_image = None

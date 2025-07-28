@@ -5,7 +5,25 @@ import json
 from .thresholding_manager import ThresholdingManager
 from .theme_manager import ThemeManager
 from .enhanced_widgets import ComboboxWithIndicator
-from .enhanced_export_dialog import EnhancedExportDialog
+try:
+    from .enhanced_export_dialog import EnhancedExportDialog
+    ENHANCED_EXPORT_AVAILABLE = True
+    print("✅ EnhancedExportDialog imported successfully")
+except ImportError as e:
+    ENHANCED_EXPORT_AVAILABLE = False
+    print(f"❌ Failed to import EnhancedExportDialog: {e}")
+    
+    # Create a fallback simple export dialog
+    class SimpleExportDialog:
+        def __init__(self, parent, theme_manager):
+            self.parent = parent
+            
+        def show(self, filename_prefix="", on_export=None, on_cancel=None):
+            # Simple fallback - just call the export with default values
+            if on_export:
+                on_export("histogram", "json", f"{filename_prefix}_export.json")
+    
+    EnhancedExportDialog = SimpleExportDialog
 
 TKINTER_AVAILABLE = True
 try:
@@ -86,6 +104,10 @@ class AnalysisControlWindow:
             self.root.title("Analysis Controls")
             self.root.geometry("420x650")
             self.root.minsize(380, 550)
+            
+            # Ensure window stays visible and maintains its title
+            self.root.wm_attributes("-topmost", False)  # Don't force always on top
+            self.root.resizable(True, True)  # Allow resizing but with constraints
 
             self.theme_manager.configure_theme(self.root)
             
@@ -108,6 +130,9 @@ class AnalysisControlWindow:
             # Pack the canvas and scrollbar
             self.canvas.pack(side="left", fill="both", expand=True)
             self.scrollbar.pack(side="right", fill="y")
+            
+            # Ensure scrollbar is visible
+            self.scrollbar.lift()
             
             # Bind events for proper scrolling behavior
             self.main_frame.bind("<Configure>", self._on_frame_configure)
@@ -144,8 +169,19 @@ class AnalysisControlWindow:
     def _on_frame_configure(self, event):
         """Update scroll region when the main frame size changes."""
         try:
-            # Update the scroll region to encompass all content
-            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            # Get the actual bounding box of all content
+            bbox = self.canvas.bbox("all")
+            if bbox:
+                x1, y1, x2, y2 = bbox
+                # Use actual content size for scroll region
+                content_width = x2 - x1
+                content_height = y2 - y1
+                
+                # Set scroll region to actual content size (this enables proper scrolling)
+                self.canvas.configure(scrollregion=(0, 0, content_width, content_height))
+            else:
+                # If no content bounding box, use minimal scroll region
+                self.canvas.configure(scrollregion=(0, 0, 1, 1))
         except Exception as e:
             if self.viewer:
                 print(f"Error updating scroll region: {e}")
@@ -153,9 +189,9 @@ class AnalysisControlWindow:
     def _on_canvas_configure(self, event):
         """Update the scrollable frame width when the canvas is resized."""
         try:
-            # Update the width of the scrollable frame to match the full canvas width
+            # Update the width of the scrollable frame to match the canvas width
             canvas_width = event.width
-            if canvas_width > 0:
+            if canvas_width > 0 and hasattr(self, 'canvas_frame') and self.canvas_frame:
                 self.canvas.itemconfig(self.canvas_frame, width=canvas_width)
         except Exception as e:
             if self.viewer:
@@ -345,21 +381,10 @@ class AnalysisControlWindow:
         export_label = ttk.Label(export_frame, text="Export Data:", font=('TkDefaultFont', 9, 'bold'))
         export_label.pack(anchor='w', pady=(0, 5))
         
-        # Create a grid for export buttons
-        export_grid = ttk.Frame(export_frame, style=self.theme_manager.get_frame_style())
-        export_grid.pack(fill='x', pady=3)
-        export_grid.columnconfigure(0, weight=1, minsize=100)
-        export_grid.columnconfigure(1, weight=1, minsize=100)
-        
-        export_data_btn = ttk.Button(export_grid, text="📊 Export Analysis Data", command=self._export_analysis_data, style=btn_style)
-        export_data_btn.grid(row=0, column=0, padx=3, pady=3, sticky="ew")
-        Tooltip(export_data_btn, "Export histogram or profile data to CSV/JSON (Ctrl+E)")
+        export_data_btn = ttk.Button(export_frame, text="📊 Export Analysis Data", command=self._export_analysis_data, style=btn_style)
+        export_data_btn.pack(fill='x', pady=3)
+        Tooltip(export_data_btn, "Export histogram, profile, or polygon data to CSV/JSON/PNG (Ctrl+E)")
         self.action_buttons['export_data'] = export_data_btn
-
-        export_poly_btn = ttk.Button(export_grid, text="📐 Export Polygons", command=self._export_polygons, style=btn_style)
-        export_poly_btn.grid(row=0, column=1, padx=3, pady=3, sticky="ew")
-        Tooltip(export_poly_btn, "Export polygons coordinates to file (Ctrl+Shift+E)")
-        self.action_buttons['export_polygons'] = export_poly_btn
         
         # Plot management
         plots_label = ttk.Label(export_frame, text="Plot Management:", font=('TkDefaultFont', 9, 'bold'))
@@ -472,18 +497,59 @@ class AnalysisControlWindow:
         current_idx = self.viewer.trackbar.parameters.get('show', 0)
         image, title = self.viewer._internal_images[current_idx]
         
-        if self.polygon_selection > 0:
-            poly_index = self.polygon_selection - 1
-            if poly_index < len(self.viewer.mouse.draw_polygons):
-                polygon = self.viewer.mouse.draw_polygons[poly_index]
-                self.viewer.analyzer.create_histogram_plot(image, polygon=polygon, title=f"{title} - Polygon {self.polygon_selection}")
-        elif self.roi_selection > 0:
-            roi_index = self.roi_selection - 1
-            if roi_index < len(self.viewer.mouse.draw_rects):
-                roi = self.viewer.mouse.draw_rects[roi_index]
-                self.viewer.analyzer.create_histogram_plot(image, roi=roi, title=f"{title} - ROI {self.roi_selection}")
-        else:
-            self.viewer.analyzer.create_histogram_plot(image, title=f"{title} - Full Image")
+        # Store current window focus and geometry to restore later
+        current_focus = self.root.focus_get()
+        current_geometry = self.root.geometry()
+        current_title = self.root.title()
+        
+        try:
+            if self.polygon_selection > 0:
+                poly_index = self.polygon_selection - 1
+                if poly_index < len(self.viewer.mouse.draw_polygons):
+                    polygon = self.viewer.mouse.draw_polygons[poly_index]
+                    self.viewer.analyzer.create_histogram_plot(image, polygon=polygon, title=f"{title} - Polygon {self.polygon_selection}")
+            elif self.roi_selection > 0:
+                roi_index = self.roi_selection - 1
+                if roi_index < len(self.viewer.mouse.draw_rects):
+                    roi = self.viewer.mouse.draw_rects[roi_index]
+                    self.viewer.analyzer.create_histogram_plot(image, roi=roi, title=f"{title} - ROI {self.roi_selection}")
+            else:
+                self.viewer.analyzer.create_histogram_plot(image, title=f"{title} - Full Image")
+        finally:
+            # Restore window focus, geometry and title after matplotlib plot creation
+            # Reduced delay since we're now using proper threading
+            self.root.after(50, lambda: self._restore_window_state(current_focus, current_geometry, current_title))
+
+    def _restore_window_state(self, focus_widget, geometry, title):
+        """Restore window state after matplotlib plot creation."""
+        try:
+            # Restore window title (most important for user visibility)
+            if self.root and self.root.winfo_exists():
+                self.root.title(title or "Analysis Controls")
+                
+                # Restore window geometry without forcing minimum size
+                if geometry:
+                    self.root.geometry(geometry)
+                
+                # Restore focus if possible
+                if focus_widget and hasattr(focus_widget, 'focus_set'):
+                    try:
+                        focus_widget.focus_set()
+                    except:
+                        self.root.focus_set()
+                else:
+                    self.root.focus_set()
+                    
+                # Ensure window is visible and properly drawn
+                self.root.lift()
+                self.root.update_idletasks()
+                
+                # Also refresh OpenCV window titles to ensure they remain visible
+                if hasattr(self.viewer, 'windows') and self.viewer.windows:
+                    self.viewer.windows.refresh_window_titles()
+                    
+        except Exception as e:
+            print(f"Error restoring window state: {e}")
 
     def _show_profiles(self):
         # Set as active button in analysis section
@@ -493,14 +559,24 @@ class AnalysisControlWindow:
         current_idx = self.viewer.trackbar.parameters.get('show', 0)
         image, title = self.viewer._internal_images[current_idx]
         
-        if self.line_selection == 0:
-            for i, line in enumerate(self.viewer.mouse.draw_lines):
-                self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {i+1}")
-        else:
-            line_index = self.line_selection - 1
-            if line_index < len(self.viewer.mouse.draw_lines):
-                line = self.viewer.mouse.draw_lines[line_index]
-                self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {self.line_selection}")
+        # Store current window state to restore later
+        current_focus = self.root.focus_get()
+        current_geometry = self.root.geometry()
+        current_title = self.root.title()
+        
+        try:
+            if self.line_selection == 0:
+                for i, line in enumerate(self.viewer.mouse.draw_lines):
+                    self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {i+1}")
+            else:
+                line_index = self.line_selection - 1
+                if line_index < len(self.viewer.mouse.draw_lines):
+                    line = self.viewer.mouse.draw_lines[line_index]
+                    self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {self.line_selection}")
+        finally:
+            # Restore window state after matplotlib plot creation
+            # Reduced delay since we're now using proper threading
+            self.root.after(50, lambda: self._restore_window_state(current_focus, current_geometry, current_title))
 
     def _toggle_line_mode(self):
         self.viewer.mouse.is_line_mode = not self.viewer.mouse.is_line_mode
@@ -578,134 +654,205 @@ class AnalysisControlWindow:
         # Set as active button in export_plots section
         self._set_active_button('export_plots', 'close_plots')
         
-        self.viewer.analyzer.close_all_plots()
+        print("📋 Close All Plots button clicked")
+        if hasattr(self.viewer, 'analyzer') and self.viewer.analyzer:
+            print("   → Calling analyzer.close_all_plots()")
+            self.viewer.analyzer.close_all_plots()
+            print("   → close_all_plots() completed")
+        else:
+            print("   → Error: No analyzer found on viewer")
 
-    def _export_polygons(self):
-        # Set as active button in export_plots section
-        self._set_active_button('export_plots', 'export_polygons')
-        
-        if not self.viewer.mouse.draw_polygons: 
-            messagebox.showinfo("Export Polygons", "No polygons available to export.")
-            return
-        
-        current_idx = self.viewer.trackbar.parameters.get('show', 0)
-        _, title = self.viewer._internal_images[current_idx] if self.viewer._internal_images else ("", "polygons")
-        
-        export_dialog = EnhancedExportDialog(self.root, self.theme_manager, title="Export Polygons")
-        
-        export_dialog.show(
-            filename_prefix=f"{title.replace(' ', '_')}_polygons",
-            on_export=lambda export_type, export_format, full_path: self._handle_polygon_export(
-                export_format, full_path
-            )
-        )
-        
-    def _handle_polygon_export(self, export_format, full_path):
-        try:
-            if self.polygon_selection > 0:
-                poly_index = self.polygon_selection - 1
-                if poly_index < len(self.viewer.mouse.draw_polygons):
-                    polygon = [self.viewer.mouse.draw_polygons[poly_index]]
-                    success = self.viewer.analyzer.export_analysis_data('polygon', polygon, export_format, full_path)
-                    if success:
-                        pass
-            else:
-                success = self.viewer.analyzer.export_analysis_data('polygon', self.viewer.mouse.draw_polygons, export_format, full_path)
-                if success:
-                    pass
-        except Exception as e:
-            messagebox.showerror("Export Error", f"Error during export: {str(e)}")
-            print(f"Export error: {str(e)}")
         
     def _export_analysis_data(self):
         # Set as active button in export_plots section
         self._set_active_button('export_plots', 'export_data')
         
+        print("📊 Export Analysis Data button clicked")
+        
         if not self.viewer._internal_images:
+            print("   → Error: No images available for analysis")
             messagebox.showinfo("Export Analysis", "No image available for analysis.")
             return
+        
+        print(f"   → Found {len(self.viewer._internal_images)} images available for export")
             
         current_idx = self.viewer.trackbar.parameters.get('show', 0)
         image, title = self.viewer._internal_images[current_idx]
         
-        export_dialog = EnhancedExportDialog(self.root, self.theme_manager)
+        print(f"   → Current image: {title}, Index: {current_idx}")
+        print(f"   → Image shape: {image.shape if image is not None else 'None'}")
         
-        export_dialog.show(
-            filename_prefix=title.replace(' ', '_'),
-            on_export=lambda export_type, export_format, full_path: self._handle_export(
-                export_type, export_format, full_path, image
+        try:
+            print("   → Creating enhanced export dialog...")
+            export_dialog = EnhancedExportDialog(self.root, self.theme_manager)
+            
+            print("   → Showing export dialog...")
+            export_dialog.show(
+                filename_prefix=title.replace(' ', '_'),
+                on_export=lambda export_type, export_format, full_path: self._handle_export(
+                    export_type, export_format, full_path, image
+                )
             )
-        )
+            print("   → Export dialog displayed successfully")
+        except Exception as e:
+            print(f"   → Error creating/showing export dialog: {e}")
+            messagebox.showerror("Export Error", f"Failed to open export dialog: {str(e)}")
         
     def _handle_export(self, export_type, export_format, full_path, image):
+        print(f"📁 _handle_export called:")
+        print(f"   → Export type: {export_type}")
+        print(f"   → Export format: {export_format}")
+        print(f"   → Full path: {full_path}")
+        print(f"   → Image shape: {image.shape if image is not None else 'None'}")
+        
+        # Handle image export
+        if export_format == "image":
+            print("   → Processing image export...")
+            if export_type == "histogram":
+                success = self.viewer.analyzer.save_last_histogram_plot(full_path)
+                if success:
+                    messagebox.showinfo("Export Complete", f"Histogram plot image saved to {full_path}")
+                else:
+                    messagebox.showerror("Export Failed", "Failed to save histogram plot image")
+            elif export_type == "profile":
+                success = self.viewer.analyzer.save_last_profile_plot(full_path)
+                if success:
+                    messagebox.showinfo("Export Complete", f"Profile plot image saved to {full_path}")
+                else:
+                    messagebox.showerror("Export Failed", "Failed to save profile plot image")
+            else:
+                messagebox.showerror("Export Error", f"Image export not supported for {export_type}")
+            return
+        
         try:
             if export_type == "histogram":
+                print("   → Processing histogram export...")
                 if self.polygon_selection > 0:
+                    print(f"   → Using polygon selection: {self.polygon_selection}")
                     poly_index = self.polygon_selection - 1
                     if poly_index < len(self.viewer.mouse.draw_polygons):
                         polygon = self.viewer.mouse.draw_polygons[poly_index]
+                        print(f"   → Calculating histogram for polygon {poly_index}")
                         histogram_data = self.viewer.analyzer.calculate_histogram(image, polygon=polygon)
+                        print(f"   → Histogram data keys: {list(histogram_data.keys()) if histogram_data else 'None'}")
+                        print(f"   → Calling export_analysis_data...")
                         success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
+                        print(f"   → Export success: {success}")
                         if success:
-                            pass
+                            messagebox.showinfo("Export Complete", f"Histogram data exported to {full_path}")
+                        else:
+                            messagebox.showerror("Export Failed", "Failed to export histogram data")
+                    else:
+                        print(f"   → Error: Invalid polygon index {poly_index}")
+                        messagebox.showerror("Export Error", "Selected polygon is no longer valid")
                 elif self.roi_selection > 0:
+                    print(f"   → Using ROI selection: {self.roi_selection}")
                     roi_index = self.roi_selection - 1
                     if roi_index < len(self.viewer.mouse.draw_rects):
                         roi = self.viewer.mouse.draw_rects[roi_index]
+                        print(f"   → Calculating histogram for ROI {roi_index}: {roi}")
                         histogram_data = self.viewer.analyzer.calculate_histogram(image, roi=roi)
+                        print(f"   → Histogram data keys: {list(histogram_data.keys()) if histogram_data else 'None'}")
+                        print(f"   → Calling export_analysis_data...")
                         success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
+                        print(f"   → Export success: {success}")
                         if success:
-                            pass
+                            messagebox.showinfo("Export Complete", f"Histogram data exported to {full_path}")
+                        else:
+                            messagebox.showerror("Export Failed", "Failed to export histogram data")
+                    else:
+                        print(f"   → Error: Invalid ROI index {roi_index}")
+                        messagebox.showerror("Export Error", "Selected ROI is no longer valid")
                 else:
+                    print("   → Using full image for histogram")
                     histogram_data = self.viewer.analyzer.calculate_histogram(image)
+                    print(f"   → Histogram data keys: {list(histogram_data.keys()) if histogram_data else 'None'}")
+                    print(f"   → Calling export_analysis_data...")
                     success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
+                    print(f"   → Export success: {success}")
                     if success:
-                        pass
+                        messagebox.showinfo("Export Complete", f"Histogram data exported to {full_path}")
+                    else:
+                        messagebox.showerror("Export Failed", "Failed to export histogram data")
             
             elif export_type == "profile":
+                print("   → Processing profile export...")
                 if not self.viewer.mouse.draw_lines:
+                    print("   → Error: No line profiles available")
                     messagebox.showinfo("Export Analysis", "No line profiles available to export.")
                     return
+                
+                print(f"   → Found {len(self.viewer.mouse.draw_lines)} line profiles")
                     
                 if self.line_selection == 0:
+                    print("   → Exporting all line profiles...")
                     base_path = os.path.splitext(full_path)[0]
                     exported_count = 0
                     
                     for i, line in enumerate(self.viewer.mouse.draw_lines):
                         line_path = f"{base_path}_line{i+1}.{export_format}"
+                        print(f"   → Processing line {i+1}: {line}")
                         profile_data = self.viewer.analyzer.calculate_pixel_profile(image, line)
+                        print(f"   → Profile data keys: {list(profile_data.keys()) if profile_data else 'None'}")
                         success = self.viewer.analyzer.export_analysis_data('profile', profile_data, export_format, line_path)
+                        print(f"   → Export success for line {i+1}: {success}")
                         if success:
                             exported_count += 1
                             
                     if exported_count > 0:
                         messagebox.showinfo("Export Complete", f"Exported {exported_count} line profiles.")
-                        pass
+                    else:
+                        messagebox.showerror("Export Failed", "Failed to export any line profiles")
                 else:
+                    print(f"   → Exporting single line profile: {self.line_selection}")
                     line_index = self.line_selection - 1
                     if line_index < len(self.viewer.mouse.draw_lines):
                         line = self.viewer.mouse.draw_lines[line_index]
+                        print(f"   → Processing line {line_index}: {line}")
                         profile_data = self.viewer.analyzer.calculate_pixel_profile(image, line)
+                        print(f"   → Profile data keys: {list(profile_data.keys()) if profile_data else 'None'}")
                         success = self.viewer.analyzer.export_analysis_data('profile', profile_data, export_format, full_path)
+                        print(f"   → Export success: {success}")
                         if success:
-                            pass
+                            messagebox.showinfo("Export Complete", f"Profile data exported to {full_path}")
+                        else:
+                            messagebox.showerror("Export Failed", "Failed to export profile data")
+                    else:
+                        print(f"   → Error: Invalid line index {line_index}")
+                        messagebox.showerror("Export Error", "Selected line is no longer valid")
                             
             elif export_type == "polygon":
+                print("   → Processing polygon export...")
                 if not self.viewer.mouse.draw_polygons:
+                    print("   → Error: No polygons available")
                     messagebox.showinfo("Export Analysis", "No polygons available to export.")
                     return
                 
+                print(f"   → Found {len(self.viewer.mouse.draw_polygons)} polygons")
+                
                 if self.polygon_selection > 0:
+                    print(f"   → Exporting single polygon: {self.polygon_selection}")
                     poly_index = self.polygon_selection - 1
                     if poly_index < len(self.viewer.mouse.draw_polygons):
                         polygon = [self.viewer.mouse.draw_polygons[poly_index]]
+                        print(f"   → Processing polygon {poly_index}: {len(polygon[0])} points")
                         success = self.viewer.analyzer.export_analysis_data('polygon', polygon, export_format, full_path)
+                        print(f"   → Export success: {success}")
                         if success:
-                            pass
+                            messagebox.showinfo("Export Complete", f"Polygon data exported to {full_path}")
+                        else:
+                            messagebox.showerror("Export Failed", "Failed to export polygon data")
+                    else:
+                        print(f"   → Error: Invalid polygon index {poly_index}")
+                        messagebox.showerror("Export Error", "Selected polygon is no longer valid")
                 else:
+                    print("   → Exporting all polygons...")
                     success = self.viewer.analyzer.export_analysis_data('polygon', self.viewer.mouse.draw_polygons, export_format, full_path)
+                    print(f"   → Export success: {success}")
                     if success:
-                        pass
+                        messagebox.showinfo("Export Complete", f"All polygon data exported to {full_path}")
+                    else:
+                        messagebox.showerror("Export Failed", "Failed to export polygon data")
                         
         except Exception as e:
             messagebox.showerror("Export Error", f"Error during export: {str(e)}")
@@ -837,25 +984,30 @@ class AnalysisControlWindow:
 
     def _set_active_button(self, section, button_key):
         """Set a button as active and update visual states for the section."""
-        if not self.action_buttons:
+        if not self.action_buttons or not self.window_created:
             return
             
         try:
             # Clear previous active button in this section
             if self.active_states.get(section):
                 prev_button = self.action_buttons.get(self.active_states[section])
-                if prev_button:
+                if prev_button and prev_button.winfo_exists():
                     prev_button.config(style=self.theme_manager.get_button_style())
             
             # Set new active button
             self.active_states[section] = button_key
             current_button = self.action_buttons.get(button_key)
-            if current_button:
+            if current_button and current_button.winfo_exists():
                 current_button.config(style=self.theme_manager.get_button_style("active"))
                 
         except Exception as e:
             if self.viewer:
                 print(f"Button state error: {e}")
+                
+    def _rebind_canvas_events(self):
+        """Re-bind canvas events after button state changes."""
+        # This method is no longer needed since we're not unbinding events
+        pass
 
     def _provide_button_feedback(self, button):
         """Provide visual feedback when action buttons are clicked."""

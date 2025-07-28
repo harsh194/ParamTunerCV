@@ -272,18 +272,36 @@ class ThemeManager:
             widget._tooltip_id = widget.after(delay, lambda: show_tooltip(event))
             
         def leave(event):
-            # Cancel scheduled tooltip
-            if hasattr(widget, '_tooltip_id'):
-                widget.after_cancel(widget._tooltip_id)
+            # Cancel scheduled tooltip safely
+            if hasattr(widget, '_tooltip_id') and widget._tooltip_id is not None:
+                try:
+                    widget.after_cancel(widget._tooltip_id)
+                except (ValueError, tk.TclError):
+                    # Timer ID is no longer valid (already executed or cancelled)
+                    pass
                 widget._tooltip_id = None
             # Hide tooltip if it's visible
             hide_tooltip()
             
         def show_tooltip(event):
-            # Get screen position
-            x, y, _, _ = widget.bbox("insert")
-            x += widget.winfo_rootx() + 25
-            y += widget.winfo_rooty() + 25
+            # Clear timer ID since tooltip is now being shown
+            if hasattr(widget, '_tooltip_id'):
+                widget._tooltip_id = None
+                
+            # Get screen position safely
+            try:
+                # Try to get cursor position from bbox if supported
+                bbox = widget.bbox("insert")
+                if bbox:
+                    x, y, _, _ = bbox
+                    x += widget.winfo_rootx() + 25
+                    y += widget.winfo_rooty() + 25
+                else:
+                    raise tk.TclError("bbox not supported")
+            except (tk.TclError, AttributeError):
+                # Fallback to widget position if bbox not supported
+                x = widget.winfo_rootx() + 25
+                y = widget.winfo_rooty() + 25
             
             # Create tooltip window
             tooltip_window = tk.Toplevel(widget)

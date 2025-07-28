@@ -26,5 +26,20 @@ class ImageAnalyzer:
     
     def close_all_plots(self):
         return self._plot_analyzer.close_all_plots()
+    
+    def save_last_histogram_plot(self, filename: str, dpi: int = 200) -> bool:
+        """Save the last created histogram plot as an image."""
+        return self._plot_analyzer.save_last_histogram_plot(filename, dpi)
+    
+    def save_last_profile_plot(self, filename: str, dpi: int = 200) -> bool:
+        """Save the last created profile plot as an image."""
+        return self._plot_analyzer.save_last_profile_plot(filename, dpi)
+    
+    def cleanup(self):
+        """Clean up the analyzer and stop all threads."""
+        if hasattr(self._plot_analyzer, 'cleanup'):
+            return self._plot_analyzer.cleanup()
+        else:
+            return self._plot_analyzer.close_all_plots()
 
 __all__ = ["ImageAnalyzer", "PlotAnalyzer", "ExportManager"]

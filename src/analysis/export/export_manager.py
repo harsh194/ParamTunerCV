@@ -22,6 +22,12 @@ class ExportManager:
         Returns:
             bool: True if export was successful
         """
+        print(f"🏭 ExportManager.export_analysis_data called:")
+        print(f"   → Analysis type: {analysis_type}")
+        print(f"   → Format: {format}")
+        print(f"   → Filename: {filename}")
+        print(f"   → Data type: {type(data)}")
+        
         if analysis_type == 'histogram':
             return self.export_histogram_data(data, format, filename)
         elif analysis_type == 'profile':
@@ -44,37 +50,57 @@ class ExportManager:
         Returns:
             bool: True if export was successful
         """
+        print(f"📊 export_histogram_data called:")
+        print(f"   → Format: {format}")
+        print(f"   → Filename: {filename}")
+        print(f"   → Data keys: {list(histogram_data.keys()) if histogram_data else 'None'}")
+        
         try:
             if format == 'json':
                 export_filename = f"{filename}.json"
+                print(f"   → Writing to JSON file: {export_filename}")
                 with open(export_filename, 'w') as f:
                     json.dump(histogram_data, f, indent=4)
-                print(f"Exported histogram data to {export_filename}")
+                print(f"   → Successfully exported histogram data to {export_filename}")
                 return True
             elif format == 'csv':
                 export_filename = f"{filename}.csv"
+                print(f"   → Writing to CSV file: {export_filename}")
                 with open(export_filename, 'w', newline='') as f:
                     writer = csv.writer(f)
+                    # Filter only channel data (exclude metadata like 'bins', 'roi', 'polygon')
+                    valid_channels = []
+                    for key, value in histogram_data.items():
+                        if key not in ['bins', 'roi', 'polygon'] and isinstance(value, (list, tuple)) and len(value) > 0:
+                            valid_channels.append(key)
+                    
+                    print(f"   → Valid CSV channels: {valid_channels}")
+                    
+                    if not valid_channels:
+                        print("   → ERROR: No valid channel data found")
+                        return False
+                    
                     # Write header
-                    channels = list(histogram_data.keys())
-                    writer.writerow(['intensity'] + channels)
+                    writer.writerow(['intensity'] + valid_channels)
                     
                     # Write data
                     for i in range(256):  # Assuming 8-bit image with 256 intensity levels
                         row = [i]
-                        for channel in channels:
+                        for channel in valid_channels:
                             if i < len(histogram_data[channel]):
                                 row.append(histogram_data[channel][i])
                             else:
                                 row.append(0)
                         writer.writerow(row)
-                print(f"Exported histogram data to {export_filename}")
+                print(f"   → Successfully exported histogram data to {export_filename}")
                 return True
             else:
                 print(f"Unsupported export format: {format}")
                 return False
         except Exception as e:
-            print(f"Error exporting histogram data: {e}")
+            print(f"   → ERROR exporting histogram data: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def export_profile_data(self, profile_data: Dict[str, List[float]], format: str = 'json', filename: str = 'profile_export') -> bool:

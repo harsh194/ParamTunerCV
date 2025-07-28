@@ -55,3 +55,23 @@ class WindowManager:
             cv2.resizeWindow(self.config.process_window_name, width, height)
         except cv2.error: pass 
         except Exception: pass
+
+    def refresh_window_titles(self):
+        """Refresh window titles to ensure they remain visible after matplotlib operations."""
+        if not self.windows_created:
+            return
+        
+        try:
+            # Force refresh of OpenCV windows to restore titles
+            if cv2.getWindowProperty(self.config.process_window_name, cv2.WND_PROP_VISIBLE) >= 1:
+                cv2.setWindowTitle(self.config.process_window_name, self.config.process_window_name)
+                
+            if cv2.getWindowProperty(self.config.text_window_name, cv2.WND_PROP_VISIBLE) >= 1:
+                cv2.setWindowTitle(self.config.text_window_name, self.config.text_window_name)
+                
+            if hasattr(self.config, 'trackbar_window_name') and cv2.getWindowProperty(self.config.trackbar_window_name, cv2.WND_PROP_VISIBLE) >= 1:
+                cv2.setWindowTitle(self.config.trackbar_window_name, self.config.trackbar_window_name)
+                
+        except (cv2.error, Exception):
+            # Silently handle any errors - window title refresh is not critical
+            pass
