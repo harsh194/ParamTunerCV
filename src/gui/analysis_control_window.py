@@ -703,7 +703,7 @@ class AnalysisControlWindow:
             export_dialog.show(
                 filename_prefix=title.replace(' ', '_'),
                 on_export=lambda export_type, export_format, full_path: self._handle_export(
-                    export_type, export_format, full_path, image
+                    export_type, export_format, full_path, image, title
                 ),
                 viewer=self.viewer
             )
@@ -712,7 +712,7 @@ class AnalysisControlWindow:
             print(f"   → Error creating/showing export dialog: {e}")
             messagebox.showerror("Export Error", f"Failed to open export dialog: {str(e)}")
         
-    def _handle_export(self, export_type, export_format, full_path, image):
+    def _handle_export(self, export_type, export_format, full_path, image, title):
         print(f"📁 _handle_export called:")
         print(f"   → Export type: {export_type}")
         print(f"   → Export format: {export_format}")
@@ -723,17 +723,75 @@ class AnalysisControlWindow:
         if export_format == "image":
             print("   → Processing image export...")
             if export_type == "histogram":
-                success = self.viewer.analyzer.save_last_histogram_plot(full_path)
-                if success:
-                    messagebox.showinfo("Export Complete", f"Histogram plot image saved to {full_path}")
-                else:
-                    messagebox.showerror("Export Failed", "Failed to save histogram plot image")
+                print("   → Creating histogram plot for image export...")
+                # Generate histogram plot based on current selections
+                try:
+                    if self.polygon_selection > 0:
+                        print(f"   → Creating histogram plot for polygon {self.polygon_selection}")
+                        poly_index = self.polygon_selection - 1
+                        if poly_index < len(self.viewer.mouse.draw_polygons):
+                            polygon = self.viewer.mouse.draw_polygons[poly_index]
+                            self.viewer.analyzer.create_histogram_plot(image, polygon=polygon, title=f"{title} - Polygon {self.polygon_selection}")
+                        else:
+                            print(f"   → Error: Invalid polygon index {poly_index}")
+                            messagebox.showerror("Export Error", "Selected polygon is no longer valid")
+                            return
+                    elif self.roi_selection > 0:
+                        print(f"   → Creating histogram plot for ROI {self.roi_selection}")
+                        roi_index = self.roi_selection - 1
+                        if roi_index < len(self.viewer.mouse.draw_rects):
+                            roi = self.viewer.mouse.draw_rects[roi_index]
+                            self.viewer.analyzer.create_histogram_plot(image, roi=roi, title=f"{title} - ROI {self.roi_selection}")
+                        else:
+                            print(f"   → Error: Invalid ROI index {roi_index}")
+                            messagebox.showerror("Export Error", "Selected ROI is no longer valid")
+                            return
+                    else:
+                        print("   → Creating histogram plot for full image")
+                        self.viewer.analyzer.create_histogram_plot(image, title=f"{title} - Full Image")
+                    
+                    # Now save the generated plot
+                    success = self.viewer.analyzer.save_last_histogram_plot(full_path)
+                    if success:
+                        messagebox.showinfo("Export Complete", f"Histogram plot image saved to {full_path}")
+                    else:
+                        messagebox.showerror("Export Failed", "Failed to save histogram plot image")
+                except Exception as e:
+                    print(f"   → Error creating histogram plot: {e}")
+                    messagebox.showerror("Export Error", f"Failed to create histogram plot: {str(e)}")
             elif export_type == "profile":
-                success = self.viewer.analyzer.save_last_profile_plot(full_path)
-                if success:
-                    messagebox.showinfo("Export Complete", f"Profile plot image saved to {full_path}")
-                else:
-                    messagebox.showerror("Export Failed", "Failed to save profile plot image")
+                print("   → Creating profile plot for image export...")
+                # Generate profile plot based on current selections
+                try:
+                    if not self.viewer.mouse.draw_lines:
+                        messagebox.showerror("Export Error", "No line profiles available for export")
+                        return
+                        
+                    if self.line_selection == 0:
+                        print("   → Creating plots for all lines")
+                        # For multiple lines, create individual plots and save the last one
+                        for i, line in enumerate(self.viewer.mouse.draw_lines):
+                            self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {i+1}")
+                    else:
+                        print(f"   → Creating profile plot for line {self.line_selection}")
+                        line_index = self.line_selection - 1
+                        if line_index < len(self.viewer.mouse.draw_lines):
+                            line = self.viewer.mouse.draw_lines[line_index]
+                            self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {self.line_selection}")
+                        else:
+                            print(f"   → Error: Invalid line index {line_index}")
+                            messagebox.showerror("Export Error", "Selected line is no longer valid")
+                            return
+                    
+                    # Now save the generated plot
+                    success = self.viewer.analyzer.save_last_profile_plot(full_path)
+                    if success:
+                        messagebox.showinfo("Export Complete", f"Profile plot image saved to {full_path}")
+                    else:
+                        messagebox.showerror("Export Failed", "Failed to save profile plot image")
+                except Exception as e:
+                    print(f"   → Error creating profile plot: {e}")
+                    messagebox.showerror("Export Error", f"Failed to create profile plot: {str(e)}")
             else:
                 messagebox.showerror("Export Error", f"Image export not supported for {export_type}")
             return
