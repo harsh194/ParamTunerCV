@@ -59,8 +59,19 @@ class ExportManager:
             if format == 'json':
                 export_filename = f"{filename}.json"
                 print(f"   → Writing to JSON file: {export_filename}")
+                
+                # Convert numpy arrays to lists for JSON serialization
+                json_data = {}
+                for key, value in histogram_data.items():
+                    if hasattr(value, 'tolist'):  # numpy array
+                        json_data[key] = value.tolist()
+                    elif isinstance(value, (list, tuple)):
+                        json_data[key] = list(value)
+                    else:
+                        json_data[key] = value
+                
                 with open(export_filename, 'w') as f:
-                    json.dump(histogram_data, f, indent=4)
+                    json.dump(json_data, f, indent=4)
                 print(f"   → Successfully exported histogram data to {export_filename}")
                 return True
             elif format == 'csv':
@@ -71,8 +82,10 @@ class ExportManager:
                     # Filter only channel data (exclude metadata like 'bins', 'roi', 'polygon')
                     valid_channels = []
                     for key, value in histogram_data.items():
-                        if key not in ['bins', 'roi', 'polygon'] and isinstance(value, (list, tuple)) and len(value) > 0:
-                            valid_channels.append(key)
+                        if key not in ['bins', 'roi', 'polygon']:
+                            # Check if it's array-like data (numpy array, list, or tuple)
+                            if hasattr(value, '__len__') and len(value) > 0:
+                                valid_channels.append(key)
                     
                     print(f"   → Valid CSV channels: {valid_channels}")
                     
@@ -83,12 +96,21 @@ class ExportManager:
                     # Write header
                     writer.writerow(['intensity'] + valid_channels)
                     
-                    # Write data
-                    for i in range(256):  # Assuming 8-bit image with 256 intensity levels
+                    # Write data - determine the actual length of histogram data
+                    max_length = 0
+                    for channel in valid_channels:
+                        max_length = max(max_length, len(histogram_data[channel]))
+                    
+                    for i in range(max_length):
                         row = [i]
                         for channel in valid_channels:
-                            if i < len(histogram_data[channel]):
-                                row.append(histogram_data[channel][i])
+                            channel_data = histogram_data[channel]
+                            if i < len(channel_data):
+                                # Handle both numpy arrays and lists
+                                if hasattr(channel_data, 'item'):  # numpy array
+                                    row.append(float(channel_data[i]))
+                                else:
+                                    row.append(channel_data[i])
                             else:
                                 row.append(0)
                         writer.writerow(row)
@@ -118,8 +140,19 @@ class ExportManager:
         try:
             if format == 'json':
                 export_filename = f"{filename}.json"
+                
+                # Convert numpy arrays to lists for JSON serialization
+                json_data = {}
+                for key, value in profile_data.items():
+                    if hasattr(value, 'tolist'):  # numpy array
+                        json_data[key] = value.tolist()
+                    elif isinstance(value, (list, tuple)):
+                        json_data[key] = list(value)
+                    else:
+                        json_data[key] = value
+                
                 with open(export_filename, 'w') as f:
-                    json.dump(profile_data, f, indent=4)
+                    json.dump(json_data, f, indent=4)
                 print(f"Exported profile data to {export_filename}")
                 return True
             elif format == 'csv':
@@ -136,10 +169,20 @@ class ExportManager:
                     # Write data
                     distances = profile_data.get('distances', [])
                     for i in range(len(distances)):
-                        row = [distances[i]]
+                        # Handle numpy arrays for distances
+                        if hasattr(distances, 'item'):  # numpy array
+                            row = [float(distances[i])]
+                        else:
+                            row = [distances[i]]
+                            
                         for channel in channels:
-                            if i < len(profile_data[channel]):
-                                row.append(profile_data[channel][i])
+                            channel_data = profile_data[channel]
+                            if i < len(channel_data):
+                                # Handle both numpy arrays and lists
+                                if hasattr(channel_data, 'item'):  # numpy array
+                                    row.append(float(channel_data[i]))
+                                else:
+                                    row.append(channel_data[i])
                             else:
                                 row.append(0)
                         writer.writerow(row)

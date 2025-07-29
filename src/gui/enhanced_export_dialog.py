@@ -30,6 +30,7 @@ class EnhancedExportDialog:
         self.export_type = tk.StringVar(value="")
         self.export_format = tk.StringVar(value="")
         self.export_as_image = tk.BooleanVar(value=False)
+        self.data_source = tk.StringVar(value="")  # New: which specific data to export
         self.filename_prefix = tk.StringVar(value="")
         self.selected_directory = ""  # Start with no directory selected
         
@@ -149,13 +150,6 @@ class EnhancedExportDialog:
                 return False, "No line profiles available for export.\n\nTo create pixel profiles:\n1. Switch to Line Mode in Analysis Controls\n2. Draw lines on the image\n3. Return here to export the profile data"
             return True, ""
             
-        elif export_type == "polygon":
-            # For polygon export, we need drawn polygons
-            has_polygons = bool(self.viewer.mouse.draw_polygons)
-            if not has_polygons:
-                return False, "No polygons available for export.\n\nTo create polygons:\n1. Switch to Polygon Mode in Analysis Controls\n2. Draw polygons on the image\n3. Return here to export the polygon coordinates"
-            return True, ""
-            
         return True, ""
         
     def _center_on_parent(self):
@@ -196,6 +190,7 @@ class EnhancedExportDialog:
         
         # Create sections
         self._create_export_type_section(main_frame)
+        self._create_data_source_section(main_frame)  # New: integrated data selection
         self._create_format_section(main_frame)
         self._create_image_section(main_frame)
         self._create_filename_section(main_frame)
@@ -216,10 +211,9 @@ class EnhancedExportDialog:
         button_container = ttk.Frame(section_frame, style=self.theme_manager.get_frame_style())
         button_container.pack(fill=tk.X, padx=8, pady=6)
         
-        # Configure grid for 3 equal columns
+        # Configure grid for 2 equal columns
         button_container.columnconfigure(0, weight=1)
-        button_container.columnconfigure(1, weight=1) 
-        button_container.columnconfigure(2, weight=1)
+        button_container.columnconfigure(1, weight=1)
         
         # Store button references for styling
         self.type_buttons = {}
@@ -233,7 +227,7 @@ class EnhancedExportDialog:
         )
         histogram_btn.grid(row=0, column=0, padx=3, pady=2, sticky="ew")
         self.type_buttons["histogram"] = histogram_btn
-        self.theme_manager.create_tooltip(histogram_btn, "Export histogram data")
+        self.theme_manager.create_tooltip(histogram_btn, "Export histogram data for full image, ROIs, or polygons")
         
         profile_btn = ttk.Button(
             button_container,
@@ -243,25 +237,247 @@ class EnhancedExportDialog:
         )
         profile_btn.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
         self.type_buttons["profile"] = profile_btn
-        self.theme_manager.create_tooltip(profile_btn, "Export pixel profile data")
-        
-        polygon_btn = ttk.Button(
-            button_container,
-            text="📐 Polygon",
-            command=lambda: self._select_type("polygon"),
-            style=self.theme_manager.get_button_style("primary")
-        )
-        polygon_btn.grid(row=0, column=2, padx=3, pady=2, sticky="ew") 
-        self.type_buttons["polygon"] = polygon_btn
-        self.theme_manager.create_tooltip(polygon_btn, "Export polygon coordinates")
+        self.theme_manager.create_tooltip(profile_btn, "Export pixel profile data for drawn lines")
         
         # Set initial selection
         self._update_type_selection()
+        
+    def _create_data_source_section(self, parent):
+        """Create the data source selection section."""
+        # Section frame
+        self.data_source_frame = ttk.LabelFrame(
+            parent, 
+            text="Data Source", 
+            style=self.theme_manager.get_frame_style()
+        )
+        self.data_source_frame.pack(fill=tk.X, padx=12, pady=6)
+        
+        # Container for dropdown and info
+        self.data_source_container = ttk.Frame(
+            self.data_source_frame, 
+            style=self.theme_manager.get_frame_style()
+        )
+        self.data_source_container.pack(fill=tk.X, padx=8, pady=6)
+        
+        # Initially empty - will be populated when analysis type is selected
+        self._create_placeholder_content()
+        
+    def _create_placeholder_content(self):
+        """Create placeholder content when no analysis type is selected."""
+        # Clear existing content
+        for widget in self.data_source_container.winfo_children():
+            widget.destroy()
+        
+        placeholder_label = tk.Label(
+            self.data_source_container,
+            text="Select an Analysis Type above to see available data sources",
+            fg='#666666',
+            bg=self.theme_manager.theme.get('frame_bg', '#ffffff'),
+            font=('TkDefaultFont', 9, 'italic')
+        )
+        placeholder_label.pack(pady=20)
+        
+    def _update_data_source_section(self):
+        """Update data source options based on selected analysis type."""
+        analysis_type = self.export_type.get()
+        
+        if not analysis_type:
+            self._create_placeholder_content()
+            return
+            
+        # Clear existing content
+        for widget in self.data_source_container.winfo_children():
+            widget.destroy()
+        
+        # Reset data source selection
+        self.data_source.set("")
+        
+        if analysis_type == "histogram":
+            self._create_histogram_data_sources()
+        elif analysis_type == "profile":
+            self._create_profile_data_sources()
+            
+    def _create_histogram_data_sources(self):
+        """Create data source dropdown for histogram analysis."""
+        # Create dropdown label and combobox
+        dropdown_frame = ttk.Frame(self.data_source_container, style=self.theme_manager.get_frame_style())
+        dropdown_frame.pack(fill='x', pady=(0, 5))
+        
+        label = ttk.Label(dropdown_frame, text="Select data source:", style=self.theme_manager.get_label_style())
+        label.pack(anchor='w', pady=(0, 3))
+        
+        # Create dropdown options
+        options = []
+        
+        # Always add full image option
+        options.append(f"🖼️ Full Image ({self._get_image_dimensions()})")
+        
+        # Add ROI options if available
+        if self.viewer and hasattr(self.viewer, 'mouse') and len(self.viewer.mouse.draw_rects) > 0:
+            for i, roi in enumerate(self.viewer.mouse.draw_rects):
+                x, y, w, h = roi
+                options.append(f"📦 ROI {i+1}: Rectangle {w}×{h} at ({x},{y})")
+        
+        # Add polygon options if available  
+        if self.viewer and hasattr(self.viewer, 'mouse') and len(self.viewer.mouse.draw_polygons) > 0:
+            for i, polygon in enumerate(self.viewer.mouse.draw_polygons):
+                points_count = len(polygon)
+                options.append(f"🔺 Polygon {i+1}: Shape with {points_count} points")
+        
+        # Create the dropdown
+        from .enhanced_widgets import ComboboxWithIndicator
+        self.data_source_combo = ComboboxWithIndicator(
+            dropdown_frame,
+            theme_manager=self.theme_manager,
+            textvariable=self.data_source,
+            state="readonly",
+            max_dropdown_items=8
+        )
+        self.data_source_combo['values'] = options
+        self.data_source_combo.pack(fill='x', pady=2)
+        self.data_source_combo.bind('<<ComboboxSelected>>', self._on_data_source_select)
+        
+        # Set default selection (first option)
+        if options:
+            self.data_source_combo.current(0)
+            self.data_source.set(self._get_value_from_display_text(options[0]))
+        
+        # Show info about capabilities
+        info_label = tk.Label(
+            self.data_source_container,
+            text="💡 Histogram can analyze full image, ROIs (rectangles), or polygons (any shape)",
+            fg='#0066cc',
+            bg=self.theme_manager.theme.get('frame_bg', '#ffffff'),
+            font=('TkDefaultFont', 8)
+        )
+        info_label.pack(anchor='w', pady=(5, 0))
+        
+        # Show warning if no ROIs/polygons
+        if len(options) == 1:  # Only full image
+            warning_label = tk.Label(
+                self.data_source_container,
+                text="⚠️ No ROIs or polygons drawn - only full image analysis available",
+                fg='#ff8800',
+                bg=self.theme_manager.theme.get('frame_bg', '#ffffff'),
+                font=('TkDefaultFont', 8)
+            )
+            warning_label.pack(anchor='w', pady=(3, 0))
+        
+    def _create_profile_data_sources(self):
+        """Create data source dropdown for pixel profile analysis."""
+        # Create dropdown label and combobox
+        dropdown_frame = ttk.Frame(self.data_source_container, style=self.theme_manager.get_frame_style())
+        dropdown_frame.pack(fill='x', pady=(0, 5))
+        
+        label = ttk.Label(dropdown_frame, text="Select line profile:", style=self.theme_manager.get_label_style())
+        label.pack(anchor='w', pady=(0, 3))
+        
+        # Check if lines are available
+        if not (self.viewer and hasattr(self.viewer, 'mouse') and len(self.viewer.mouse.draw_lines) > 0):
+            # No lines available - show error message
+            error_label = tk.Label(
+                self.data_source_container,
+                text="❌ No line profiles available\n\nTo create line profiles:\n1. Switch to Line Mode in Analysis Controls\n2. Draw lines on the image\n3. Return here to export",
+                fg='#cc0000',
+                bg=self.theme_manager.theme.get('frame_bg', '#ffffff'),
+                font=('TkDefaultFont', 9),
+                justify='left'
+            )
+            error_label.pack(anchor='w', pady=10)
+            return
+        
+        # Create dropdown options
+        options = []
+        
+        # Add "all lines" option if multiple lines exist
+        if len(self.viewer.mouse.draw_lines) > 1:
+            options.append(f"📏 All Lines: Export all {len(self.viewer.mouse.draw_lines)} line profiles")
+        
+        # Add individual line options
+        for i, line in enumerate(self.viewer.mouse.draw_lines):
+            x1, y1, x2, y2 = line  # Line is stored as (x1, y1, x2, y2)
+            length = int(((x2 - x1)**2 + (y2 - y1)**2)**0.5)
+            options.append(f"📏 Line {i+1}: From ({x1},{y1}) to ({x2},{y2}), length: {length}px")
+        
+        # Create the dropdown
+        from .enhanced_widgets import ComboboxWithIndicator
+        self.data_source_combo = ComboboxWithIndicator(
+            dropdown_frame,
+            theme_manager=self.theme_manager,
+            textvariable=self.data_source,
+            state="readonly",
+            max_dropdown_items=8
+        )
+        self.data_source_combo['values'] = options
+        self.data_source_combo.pack(fill='x', pady=2)
+        self.data_source_combo.bind('<<ComboboxSelected>>', self._on_data_source_select)
+        
+        # Set default selection (first option)
+        if options:
+            self.data_source_combo.current(0)
+            self.data_source.set(self._get_value_from_display_text(options[0]))
+        
+        # Show info about pixel profiles
+        info_label = tk.Label(
+            self.data_source_container,
+            text="💡 Pixel profiles show intensity values along drawn lines",
+            fg='#0066cc',
+            bg=self.theme_manager.theme.get('frame_bg', '#ffffff'),
+            font=('TkDefaultFont', 8)
+        )
+        info_label.pack(anchor='w', pady=(5, 0))
+        
+    def _get_value_from_display_text(self, display_text):
+        """Convert display text back to internal value for backend processing."""
+        if display_text.startswith("🖼️ Full Image"):
+            return "full_image"
+        elif display_text.startswith("📦 ROI"):
+            # Extract ROI number (e.g., "📦 ROI 1:" -> "roi_0")
+            roi_num = int(display_text.split("ROI ")[1].split(":")[0])
+            return f"roi_{roi_num - 1}"
+        elif display_text.startswith("🔺 Polygon"):
+            # Extract polygon number (e.g., "🔺 Polygon 1:" -> "polygon_0") 
+            poly_num = int(display_text.split("Polygon ")[1].split(":")[0])
+            return f"polygon_{poly_num - 1}"
+        elif display_text.startswith("📏 All Lines"):
+            return "all_lines"
+        elif display_text.startswith("📏 Line"):
+            # Extract line number (e.g., "📏 Line 1:" -> "line_0")
+            line_num = int(display_text.split("Line ")[1].split(":")[0])
+            return f"line_{line_num - 1}"
+        else:
+            # Fallback - return display text as-is
+            return display_text
+                
+    def _on_data_source_select(self, event=None):
+        """Handle data source selection."""
+        # Get the selected display text from the dropdown
+        if hasattr(self, 'data_source_combo'):
+            selected_display = self.data_source_combo.get()
+            if selected_display:
+                # Convert display text to internal value
+                internal_value = self._get_value_from_display_text(selected_display)
+                self.data_source.set(internal_value)
+        
+        # Update filename preview if needed
+        self._update_filename_preview()
+        
+    def _get_image_dimensions(self):
+        """Get current image dimensions for display."""
+        if self.viewer and hasattr(self.viewer, '_internal_images') and self.viewer._internal_images:
+            current_idx = self.viewer.trackbar.parameters.get('show', 0) if hasattr(self.viewer, 'trackbar') else 0
+            if current_idx < len(self.viewer._internal_images):
+                image, _ = self.viewer._internal_images[current_idx]
+                if image is not None:
+                    h, w = image.shape[:2]
+                    return f"{w}×{h}"
+        return "unknown size"
     
     def _select_type(self, type_name):
         """Handle analysis type selection."""
         self.export_type.set(type_name)
         self._update_type_selection()
+        self._update_data_source_section()  # Update data source options
         
     def _update_type_selection(self):
         """Update visual selection for analysis type."""
@@ -606,27 +822,16 @@ class EnhancedExportDialog:
             messagebox.showwarning("Selection Required", "Please select an Analysis Type (Histogram, Pixel Profile, or Polygon).")
             return
             
+        data_source = self.data_source.get()
+        if not data_source:
+            from tkinter import messagebox
+            messagebox.showwarning("Selection Required", "Please select a Data Source to export.")
+            return
+            
         if not is_image and not export_format:
             from tkinter import messagebox
             messagebox.showwarning("Selection Required", "Please select either an Export Format (JSON or CSV) or choose to save as PNG image.")
             return
-            
-        # Check if the requested analysis data is available
-        has_data, warning_message = self._check_data_availability(export_type)
-        
-        if not has_data:
-            from tkinter import messagebox
-            messagebox.showwarning("No Data Available", warning_message)
-            return
-            
-        # Show informational message if there's a warning (but data is still available)
-        if warning_message:
-            from tkinter import messagebox
-            result = messagebox.askquestion("Export Confirmation", 
-                                          f"{warning_message}\n\nDo you want to continue with the export?",
-                                          icon='question')
-            if result != 'yes':
-                return
         
         # Save settings
         self._save_settings()
@@ -660,9 +865,9 @@ class EnhancedExportDialog:
         # Call export callback if provided
         if self.on_export_callback:
             if is_image:
-                self.on_export_callback(export_type, "image", full_path)
+                self.on_export_callback(export_type, "image", full_path, data_source)
             else:
-                self.on_export_callback(export_type, export_format, full_path)
+                self.on_export_callback(export_type, export_format, full_path, data_source)
             
     def _on_cancel(self):
         """Handle cancel button click."""

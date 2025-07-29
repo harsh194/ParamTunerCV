@@ -702,8 +702,8 @@ class AnalysisControlWindow:
             print("   → Showing export dialog...")
             export_dialog.show(
                 filename_prefix=title.replace(' ', '_'),
-                on_export=lambda export_type, export_format, full_path: self._handle_export(
-                    export_type, export_format, full_path, image, title
+                on_export=lambda export_type, export_format, full_path, data_source: self._handle_export(
+                    export_type, export_format, full_path, image, title, data_source
                 ),
                 viewer=self.viewer
             )
@@ -712,11 +712,12 @@ class AnalysisControlWindow:
             print(f"   → Error creating/showing export dialog: {e}")
             messagebox.showerror("Export Error", f"Failed to open export dialog: {str(e)}")
         
-    def _handle_export(self, export_type, export_format, full_path, image, title):
+    def _handle_export(self, export_type, export_format, full_path, image, title, data_source):
         print(f"📁 _handle_export called:")
         print(f"   → Export type: {export_type}")
         print(f"   → Export format: {export_format}")
         print(f"   → Full path: {full_path}")
+        print(f"   → Data source: {data_source}")
         print(f"   → Image shape: {image.shape if image is not None else 'None'}")
         
         # Handle image export
@@ -724,33 +725,34 @@ class AnalysisControlWindow:
             print("   → Processing image export...")
             if export_type == "histogram":
                 print("   → Creating histogram plot for image export...")
-                # Generate histogram plot based on current selections
                 try:
-                    if self.polygon_selection > 0:
-                        print(f"   → Creating histogram plot for polygon {self.polygon_selection}")
-                        poly_index = self.polygon_selection - 1
-                        if poly_index < len(self.viewer.mouse.draw_polygons):
-                            polygon = self.viewer.mouse.draw_polygons[poly_index]
-                            self.viewer.analyzer.create_histogram_plot(image, polygon=polygon, title=f"{title} - Polygon {self.polygon_selection}")
-                        else:
-                            print(f"   → Error: Invalid polygon index {poly_index}")
-                            messagebox.showerror("Export Error", "Selected polygon is no longer valid")
-                            return
-                    elif self.roi_selection > 0:
-                        print(f"   → Creating histogram plot for ROI {self.roi_selection}")
-                        roi_index = self.roi_selection - 1
-                        if roi_index < len(self.viewer.mouse.draw_rects):
-                            roi = self.viewer.mouse.draw_rects[roi_index]
-                            self.viewer.analyzer.create_histogram_plot(image, roi=roi, title=f"{title} - ROI {self.roi_selection}")
-                        else:
-                            print(f"   → Error: Invalid ROI index {roi_index}")
-                            messagebox.showerror("Export Error", "Selected ROI is no longer valid")
-                            return
-                    else:
+                    # Parse data source to determine what to plot
+                    if data_source == "full_image":
                         print("   → Creating histogram plot for full image")
                         self.viewer.analyzer.create_histogram_plot(image, title=f"{title} - Full Image")
+                    elif data_source.startswith("roi_"):
+                        roi_index = int(data_source.split("_")[1])
+                        print(f"   → Creating histogram plot for ROI {roi_index + 1}")
+                        if roi_index < len(self.viewer.mouse.draw_rects):
+                            roi = self.viewer.mouse.draw_rects[roi_index]
+                            self.viewer.analyzer.create_histogram_plot(image, roi=roi, title=f"{title} - ROI {roi_index + 1}")
+                        else:
+                            messagebox.showerror("Export Error", "Selected ROI is no longer valid")
+                            return
+                    elif data_source.startswith("polygon_"):
+                        poly_index = int(data_source.split("_")[1])
+                        print(f"   → Creating histogram plot for Polygon {poly_index + 1}")
+                        if poly_index < len(self.viewer.mouse.draw_polygons):
+                            polygon = self.viewer.mouse.draw_polygons[poly_index]
+                            self.viewer.analyzer.create_histogram_plot(image, polygon=polygon, title=f"{title} - Polygon {poly_index + 1}")
+                        else:
+                            messagebox.showerror("Export Error", "Selected polygon is no longer valid")
+                            return
+                    else:
+                        messagebox.showerror("Export Error", f"Unknown data source: {data_source}")
+                        return
                     
-                    # Now save the generated plot
+                    # Save the generated plot
                     success = self.viewer.analyzer.save_last_histogram_plot(full_path)
                     if success:
                         messagebox.showinfo("Export Complete", f"Histogram plot image saved to {full_path}")
@@ -761,29 +763,27 @@ class AnalysisControlWindow:
                     messagebox.showerror("Export Error", f"Failed to create histogram plot: {str(e)}")
             elif export_type == "profile":
                 print("   → Creating profile plot for image export...")
-                # Generate profile plot based on current selections
                 try:
-                    if not self.viewer.mouse.draw_lines:
-                        messagebox.showerror("Export Error", "No line profiles available for export")
-                        return
-                        
-                    if self.line_selection == 0:
+                    # Parse data source to determine what to plot
+                    if data_source == "all_lines":
                         print("   → Creating plots for all lines")
                         # For multiple lines, create individual plots and save the last one
                         for i, line in enumerate(self.viewer.mouse.draw_lines):
                             self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {i+1}")
-                    else:
-                        print(f"   → Creating profile plot for line {self.line_selection}")
-                        line_index = self.line_selection - 1
+                    elif data_source.startswith("line_"):
+                        line_index = int(data_source.split("_")[1])
+                        print(f"   → Creating profile plot for Line {line_index + 1}")
                         if line_index < len(self.viewer.mouse.draw_lines):
                             line = self.viewer.mouse.draw_lines[line_index]
-                            self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {self.line_selection}")
+                            self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {line_index + 1}")
                         else:
-                            print(f"   → Error: Invalid line index {line_index}")
                             messagebox.showerror("Export Error", "Selected line is no longer valid")
                             return
+                    else:
+                        messagebox.showerror("Export Error", f"Unknown data source: {data_source}")
+                        return
                     
-                    # Now save the generated plot
+                    # Save the generated plot
                     success = self.viewer.analyzer.save_last_profile_plot(full_path)
                     if success:
                         messagebox.showinfo("Export Complete", f"Profile plot image saved to {full_path}")
@@ -798,65 +798,46 @@ class AnalysisControlWindow:
         
         try:
             if export_type == "histogram":
-                print("   → Processing histogram export...")
-                if self.polygon_selection > 0:
-                    print(f"   → Using polygon selection: {self.polygon_selection}")
-                    poly_index = self.polygon_selection - 1
-                    if poly_index < len(self.viewer.mouse.draw_polygons):
-                        polygon = self.viewer.mouse.draw_polygons[poly_index]
-                        print(f"   → Calculating histogram for polygon {poly_index}")
-                        histogram_data = self.viewer.analyzer.calculate_histogram(image, polygon=polygon)
-                        print(f"   → Histogram data keys: {list(histogram_data.keys()) if histogram_data else 'None'}")
-                        print(f"   → Calling export_analysis_data...")
-                        success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
-                        print(f"   → Export success: {success}")
-                        if success:
-                            messagebox.showinfo("Export Complete", f"Histogram data exported to {full_path}")
-                        else:
-                            messagebox.showerror("Export Failed", "Failed to export histogram data")
-                    else:
-                        print(f"   → Error: Invalid polygon index {poly_index}")
-                        messagebox.showerror("Export Error", "Selected polygon is no longer valid")
-                elif self.roi_selection > 0:
-                    print(f"   → Using ROI selection: {self.roi_selection}")
-                    roi_index = self.roi_selection - 1
+                print("   → Processing histogram data export...")
+                # Parse data source to determine what to export
+                if data_source == "full_image":
+                    print("   → Calculating histogram for full image")
+                    histogram_data = self.viewer.analyzer.calculate_histogram(image)
+                elif data_source.startswith("roi_"):
+                    roi_index = int(data_source.split("_")[1])
+                    print(f"   → Calculating histogram for ROI {roi_index + 1}")
                     if roi_index < len(self.viewer.mouse.draw_rects):
                         roi = self.viewer.mouse.draw_rects[roi_index]
-                        print(f"   → Calculating histogram for ROI {roi_index}: {roi}")
                         histogram_data = self.viewer.analyzer.calculate_histogram(image, roi=roi)
-                        print(f"   → Histogram data keys: {list(histogram_data.keys()) if histogram_data else 'None'}")
-                        print(f"   → Calling export_analysis_data...")
-                        success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
-                        print(f"   → Export success: {success}")
-                        if success:
-                            messagebox.showinfo("Export Complete", f"Histogram data exported to {full_path}")
-                        else:
-                            messagebox.showerror("Export Failed", "Failed to export histogram data")
                     else:
-                        print(f"   → Error: Invalid ROI index {roi_index}")
                         messagebox.showerror("Export Error", "Selected ROI is no longer valid")
-                else:
-                    print("   → Using full image for histogram")
-                    histogram_data = self.viewer.analyzer.calculate_histogram(image)
-                    print(f"   → Histogram data keys: {list(histogram_data.keys()) if histogram_data else 'None'}")
-                    print(f"   → Calling export_analysis_data...")
-                    success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
-                    print(f"   → Export success: {success}")
-                    if success:
-                        messagebox.showinfo("Export Complete", f"Histogram data exported to {full_path}")
+                        return
+                elif data_source.startswith("polygon_"):
+                    poly_index = int(data_source.split("_")[1])
+                    print(f"   → Calculating histogram for Polygon {poly_index + 1}")
+                    if poly_index < len(self.viewer.mouse.draw_polygons):
+                        polygon = self.viewer.mouse.draw_polygons[poly_index]
+                        histogram_data = self.viewer.analyzer.calculate_histogram(image, polygon=polygon)
                     else:
-                        messagebox.showerror("Export Failed", "Failed to export histogram data")
-            
-            elif export_type == "profile":
-                print("   → Processing profile export...")
-                if not self.viewer.mouse.draw_lines:
-                    print("   → Error: No line profiles available")
-                    messagebox.showinfo("Export Analysis", "No line profiles available to export.")
+                        messagebox.showerror("Export Error", "Selected polygon is no longer valid")
+                        return
+                else:
+                    messagebox.showerror("Export Error", f"Unknown data source: {data_source}")
                     return
                 
-                print(f"   → Found {len(self.viewer.mouse.draw_lines)} line profiles")
-                    
-                if self.line_selection == 0:
+                print(f"   → Histogram data keys: {list(histogram_data.keys()) if histogram_data else 'None'}")
+                print(f"   → Exporting histogram data...")
+                success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
+                print(f"   → Export success: {success}")
+                if success:
+                    messagebox.showinfo("Export Complete", f"Histogram data exported to {full_path}")
+                else:
+                    messagebox.showerror("Export Failed", "Failed to export histogram data")
+            
+            elif export_type == "profile":
+                print("   → Processing profile data export...")
+                # Parse data source to determine what to export
+                if data_source == "all_lines":
                     print("   → Exporting all line profiles...")
                     base_path = os.path.splitext(full_path)[0]
                     exported_count = 0
@@ -875,9 +856,9 @@ class AnalysisControlWindow:
                         messagebox.showinfo("Export Complete", f"Exported {exported_count} line profiles.")
                     else:
                         messagebox.showerror("Export Failed", "Failed to export any line profiles")
-                else:
-                    print(f"   → Exporting single line profile: {self.line_selection}")
-                    line_index = self.line_selection - 1
+                elif data_source.startswith("line_"):
+                    line_index = int(data_source.split("_")[1])
+                    print(f"   → Exporting Line {line_index + 1} profile")
                     if line_index < len(self.viewer.mouse.draw_lines):
                         line = self.viewer.mouse.draw_lines[line_index]
                         print(f"   → Processing line {line_index}: {line}")
@@ -890,41 +871,15 @@ class AnalysisControlWindow:
                         else:
                             messagebox.showerror("Export Failed", "Failed to export profile data")
                     else:
-                        print(f"   → Error: Invalid line index {line_index}")
                         messagebox.showerror("Export Error", "Selected line is no longer valid")
-                            
-            elif export_type == "polygon":
-                print("   → Processing polygon export...")
-                if not self.viewer.mouse.draw_polygons:
-                    print("   → Error: No polygons available")
-                    messagebox.showinfo("Export Analysis", "No polygons available to export.")
-                    return
-                
-                print(f"   → Found {len(self.viewer.mouse.draw_polygons)} polygons")
-                
-                if self.polygon_selection > 0:
-                    print(f"   → Exporting single polygon: {self.polygon_selection}")
-                    poly_index = self.polygon_selection - 1
-                    if poly_index < len(self.viewer.mouse.draw_polygons):
-                        polygon = [self.viewer.mouse.draw_polygons[poly_index]]
-                        print(f"   → Processing polygon {poly_index}: {len(polygon[0])} points")
-                        success = self.viewer.analyzer.export_analysis_data('polygon', polygon, export_format, full_path)
-                        print(f"   → Export success: {success}")
-                        if success:
-                            messagebox.showinfo("Export Complete", f"Polygon data exported to {full_path}")
-                        else:
-                            messagebox.showerror("Export Failed", "Failed to export polygon data")
-                    else:
-                        print(f"   → Error: Invalid polygon index {poly_index}")
-                        messagebox.showerror("Export Error", "Selected polygon is no longer valid")
+                        return
                 else:
-                    print("   → Exporting all polygons...")
-                    success = self.viewer.analyzer.export_analysis_data('polygon', self.viewer.mouse.draw_polygons, export_format, full_path)
-                    print(f"   → Export success: {success}")
-                    if success:
-                        messagebox.showinfo("Export Complete", f"All polygon data exported to {full_path}")
-                    else:
-                        messagebox.showerror("Export Failed", "Failed to export polygon data")
+                    messagebox.showerror("Export Error", f"Unknown data source: {data_source}")
+                    return
+                            
+            else:
+                messagebox.showerror("Export Error", f"Unknown export type: {export_type}")
+                return
                         
         except Exception as e:
             messagebox.showerror("Export Error", f"Error during export: {str(e)}")
