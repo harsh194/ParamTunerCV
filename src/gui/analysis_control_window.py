@@ -704,7 +704,8 @@ class AnalysisControlWindow:
                 filename_prefix=title.replace(' ', '_'),
                 on_export=lambda export_type, export_format, full_path: self._handle_export(
                     export_type, export_format, full_path, image
-                )
+                ),
+                viewer=self.viewer
             )
             print("   → Export dialog displayed successfully")
         except Exception as e:

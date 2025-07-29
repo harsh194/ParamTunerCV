@@ -31,7 +31,7 @@ class EnhancedExportDialog:
         self.export_format = tk.StringVar(value="")
         self.export_as_image = tk.BooleanVar(value=False)
         self.filename_prefix = tk.StringVar(value="")
-        self.selected_directory = self.settings.get("last_directory", "")
+        self.selected_directory = ""  # Start with no directory selected
         
         # Callback functions
         self.on_export_callback = None
@@ -44,7 +44,6 @@ class EnhancedExportDialog:
                 with open(self.CONFIG_FILE, 'r') as f:
                     return json.load(f)
             return {
-                "recent_directories": [],
                 "last_directory": "",
                 "last_export_type": "histogram",
                 "last_export_format": "json",
@@ -53,7 +52,6 @@ class EnhancedExportDialog:
         except Exception:
             # If there's any error loading settings, return defaults
             return {
-                "recent_directories": [],
                 "last_directory": "",
                 "last_export_type": "histogram",
                 "last_export_format": "json",
@@ -74,15 +72,9 @@ class EnhancedExportDialog:
                 self.settings["last_export_format"] = export_format
             self.settings["last_export_as_image"] = export_as_image
             
-            # Add current directory to recent directories if it exists
+            # Save current directory if it exists
             if self.selected_directory and os.path.exists(self.selected_directory):
                 self.settings["last_directory"] = self.selected_directory
-                
-                # Add to recent directories if not already there
-                if self.selected_directory not in self.settings["recent_directories"]:
-                    self.settings["recent_directories"].insert(0, self.selected_directory)
-                    # Keep only the 5 most recent directories
-                    self.settings["recent_directories"] = self.settings["recent_directories"][:5]
             
             # Save settings to file
             with open(self.CONFIG_FILE, 'w') as f:
@@ -91,7 +83,7 @@ class EnhancedExportDialog:
             # Silently fail if we can't save settings
             pass
             
-    def show(self, filename_prefix="", on_export=None, on_cancel=None):
+    def show(self, filename_prefix="", on_export=None, on_cancel=None, viewer=None):
         """
         Show the export dialog.
         
@@ -99,10 +91,12 @@ class EnhancedExportDialog:
             filename_prefix: Default filename prefix
             on_export: Callback function when export is confirmed
             on_cancel: Callback function when export is canceled
+            viewer: ImageViewer instance to check for available analysis data
         """
         self.filename_prefix.set(filename_prefix)
         self.on_export_callback = on_export
         self.on_cancel_callback = on_cancel
+        self.viewer = viewer  # Store viewer reference for data validation
         
         # Create dialog window
         self.dialog = tk.Toplevel(self.parent)
@@ -126,6 +120,43 @@ class EnhancedExportDialog:
         
         # Wait for the dialog to be closed
         self.parent.wait_window(self.dialog)
+        
+    def _check_data_availability(self, export_type):
+        """
+        Check if the requested analysis data is available.
+        
+        Args:
+            export_type: Type of export requested ('histogram', 'profile', 'polygon')
+            
+        Returns:
+            tuple: (has_data, warning_message)
+        """
+        if not self.viewer:
+            return True, ""  # If no viewer provided, assume data is available
+            
+        if export_type == "histogram":
+            # For histogram, we need either ROIs, polygons, or can use full image
+            has_rois = bool(self.viewer.mouse.draw_rects)
+            has_polygons = bool(self.viewer.mouse.draw_polygons)
+            if not has_rois and not has_polygons:
+                return True, "Note: No ROIs or polygons drawn. Histogram will be calculated for the full image."
+            return True, ""
+            
+        elif export_type == "profile":
+            # For pixel profiles, we need drawn lines
+            has_lines = bool(self.viewer.mouse.draw_lines)
+            if not has_lines:
+                return False, "No line profiles available for export.\n\nTo create pixel profiles:\n1. Switch to Line Mode in Analysis Controls\n2. Draw lines on the image\n3. Return here to export the profile data"
+            return True, ""
+            
+        elif export_type == "polygon":
+            # For polygon export, we need drawn polygons
+            has_polygons = bool(self.viewer.mouse.draw_polygons)
+            if not has_polygons:
+                return False, "No polygons available for export.\n\nTo create polygons:\n1. Switch to Polygon Mode in Analysis Controls\n2. Draw polygons on the image\n3. Return here to export the polygon coordinates"
+            return True, ""
+            
+        return True, ""
         
     def _center_on_parent(self):
         """Center the dialog on the parent window."""
@@ -515,46 +546,6 @@ class EnhancedExportDialog:
         )
         browse_btn.pack(side=tk.RIGHT)
         
-        # Recent directories
-        if self.settings.get("recent_directories"):
-            recent_label = ttk.Label(section_frame, text="Recent Locations:")
-            recent_label.pack(anchor=tk.W, pady=(10, 5))
-            
-            # Create a frame with scrollbar for recent directories
-            recent_frame = ttk.Frame(section_frame, style=self.theme_manager.get_frame_style())
-            recent_frame.pack(fill=tk.BOTH, expand=True)
-            
-            # Add scrollbar
-            scrollbar = ttk.Scrollbar(recent_frame)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-            
-            # Create listbox for recent directories
-            recent_listbox = tk.Listbox(
-                recent_frame,
-                height=2,
-                selectmode=tk.SINGLE,
-                yscrollcommand=scrollbar.set
-            )
-            recent_listbox.pack(fill=tk.BOTH, expand=True)
-            scrollbar.config(command=recent_listbox.yview)
-            
-            # Add recent directories to listbox
-            for directory in self.settings.get("recent_directories", []):
-                if os.path.exists(directory):
-                    recent_listbox.insert(tk.END, directory)
-            
-            # Bind selection event
-            recent_listbox.bind('<<ListboxSelect>>', lambda e: self._select_recent_directory(recent_listbox))
-            
-    def _select_recent_directory(self, listbox):
-        """Select a directory from the recent directories listbox."""
-        selection = listbox.curselection()
-        if selection:
-            index = selection[0]
-            directory = listbox.get(index)
-            self.dir_var.set(directory)
-            self.selected_directory = directory
-            
     def _browse_directory(self):
         """Browse for a directory."""
         directory = filedialog.askdirectory(
@@ -619,6 +610,23 @@ class EnhancedExportDialog:
             from tkinter import messagebox
             messagebox.showwarning("Selection Required", "Please select either an Export Format (JSON or CSV) or choose to save as PNG image.")
             return
+            
+        # Check if the requested analysis data is available
+        has_data, warning_message = self._check_data_availability(export_type)
+        
+        if not has_data:
+            from tkinter import messagebox
+            messagebox.showwarning("No Data Available", warning_message)
+            return
+            
+        # Show informational message if there's a warning (but data is still available)
+        if warning_message:
+            from tkinter import messagebox
+            result = messagebox.askquestion("Export Confirmation", 
+                                          f"{warning_message}\n\nDo you want to continue with the export?",
+                                          icon='question')
+            if result != 'yes':
+                return
         
         # Save settings
         self._save_settings()
