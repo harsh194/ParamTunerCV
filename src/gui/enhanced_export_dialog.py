@@ -26,10 +26,10 @@ class EnhancedExportDialog:
         self.dialog = None
         self.settings = self._load_settings()
         
-        # Default values
-        self.export_type = tk.StringVar(value=self.settings.get("last_export_type", "histogram"))
-        self.export_format = tk.StringVar(value=self.settings.get("last_export_format", "json"))
-        self.export_as_image = tk.BooleanVar(value=self.settings.get("last_export_as_image", False))
+        # Default values - start with no selection to keep all buttons blue initially
+        self.export_type = tk.StringVar(value="")
+        self.export_format = tk.StringVar(value="")
+        self.export_as_image = tk.BooleanVar(value=False)
         self.filename_prefix = tk.StringVar(value="")
         self.selected_directory = self.settings.get("last_directory", "")
         
@@ -63,10 +63,16 @@ class EnhancedExportDialog:
     def _save_settings(self):
         """Save export settings to config file."""
         try:
-            # Update settings with current values
-            self.settings["last_export_type"] = self.export_type.get()
-            self.settings["last_export_format"] = self.export_format.get()
-            self.settings["last_export_as_image"] = self.export_as_image.get()
+            # Update settings with current values only if they were selected
+            export_type = self.export_type.get()
+            export_format = self.export_format.get()
+            export_as_image = self.export_as_image.get()
+            
+            if export_type:
+                self.settings["last_export_type"] = export_type
+            if export_format:
+                self.settings["last_export_format"] = export_format
+            self.settings["last_export_as_image"] = export_as_image
             
             # Add current directory to recent directories if it exists
             if self.selected_directory and os.path.exists(self.selected_directory):
@@ -176,7 +182,7 @@ class EnhancedExportDialog:
         section_frame.pack(fill=tk.X, padx=12, pady=6)
         
         # Container for buttons with proper spacing
-        button_container = tk.Frame(section_frame, bg='#f8f9fa')
+        button_container = ttk.Frame(section_frame, style=self.theme_manager.get_frame_style())
         button_container.pack(fill=tk.X, padx=8, pady=6)
         
         # Configure grid for 3 equal columns
@@ -187,50 +193,32 @@ class EnhancedExportDialog:
         # Store button references for styling
         self.type_buttons = {}
         
-        # Create square-style buttons
-        histogram_btn = tk.Button(
+        # Create buttons using ttk.Button with primary blue style
+        histogram_btn = ttk.Button(
             button_container,
-            text="📊\nHistogram",
+            text="📊 Histogram",
             command=lambda: self._select_type("histogram"),
-            width=12,
-            height=2,
-            relief="raised",
-            bd=2,
-            font=('TkDefaultFont', 9, 'bold'),
-            bg='#f0f0f0',
-            activebackground='#e0e0e0'
+            style=self.theme_manager.get_button_style("primary")
         )
         histogram_btn.grid(row=0, column=0, padx=3, pady=2, sticky="ew")
         self.type_buttons["histogram"] = histogram_btn
         self.theme_manager.create_tooltip(histogram_btn, "Export histogram data")
         
-        profile_btn = tk.Button(
+        profile_btn = ttk.Button(
             button_container,
-            text="📈\nPixel Profile", 
+            text="📈 Pixel Profile", 
             command=lambda: self._select_type("profile"),
-            width=12,
-            height=2,
-            relief="raised",
-            bd=2,
-            font=('TkDefaultFont', 9, 'bold'),
-            bg='#f0f0f0',
-            activebackground='#e0e0e0'
+            style=self.theme_manager.get_button_style("primary")
         )
         profile_btn.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
         self.type_buttons["profile"] = profile_btn
         self.theme_manager.create_tooltip(profile_btn, "Export pixel profile data")
         
-        polygon_btn = tk.Button(
+        polygon_btn = ttk.Button(
             button_container,
-            text="📐\nPolygon",
+            text="📐 Polygon",
             command=lambda: self._select_type("polygon"),
-            width=12,
-            height=2,
-            relief="raised", 
-            bd=2,
-            font=('TkDefaultFont', 9, 'bold'),
-            bg='#f0f0f0',
-            activebackground='#e0e0e0'
+            style=self.theme_manager.get_button_style("primary")
         )
         polygon_btn.grid(row=0, column=2, padx=3, pady=2, sticky="ew") 
         self.type_buttons["polygon"] = polygon_btn
@@ -248,24 +236,12 @@ class EnhancedExportDialog:
         """Update visual selection for analysis type."""
         current_type = self.export_type.get()
         for type_name, button in self.type_buttons.items():
-            if type_name == current_type:
-                # Selected style - green background
-                button.config(
-                    bg='#28a745',
-                    fg='white',
-                    relief="solid",
-                    bd=2,
-                    activebackground='#1e7e34'
-                )
+            if current_type and type_name == current_type:
+                # Selected style - active green style
+                button.config(style=self.theme_manager.get_button_style("active"))
             else:
-                # Unselected style
-                button.config(
-                    bg='#f0f0f0',
-                    fg='black',
-                    relief="raised",
-                    bd=2,
-                    activebackground='#e0e0e0'
-                )
+                # Unselected style - primary blue style
+                button.config(style=self.theme_manager.get_button_style("primary"))
         
     def _create_format_section(self, parent):
         """Create the format selection section with square buttons."""
@@ -278,7 +254,7 @@ class EnhancedExportDialog:
         section_frame.pack(fill=tk.X, padx=12, pady=6)
         
         # Container for buttons
-        button_container = tk.Frame(section_frame, bg='#f8f9fa')
+        button_container = ttk.Frame(section_frame, style=self.theme_manager.get_frame_style())
         button_container.pack(fill=tk.X, padx=8, pady=6)
         
         # Configure grid for 2 equal columns
@@ -289,34 +265,22 @@ class EnhancedExportDialog:
         self.format_buttons = {}
         
         # JSON button
-        json_btn = tk.Button(
+        json_btn = ttk.Button(
             button_container,
-            text="📄\nJSON",
+            text="📄 JSON",
             command=lambda: self._select_format("json"),
-            width=15,
-            height=2,
-            relief="raised",
-            bd=2,
-            font=('TkDefaultFont', 9, 'bold'),
-            bg='#f0f0f0',
-            activebackground='#e0e0e0'
+            style=self.theme_manager.get_button_style("primary")
         )
         json_btn.grid(row=0, column=0, padx=3, pady=2, sticky="ew")
         self.format_buttons["json"] = json_btn
         self.theme_manager.create_tooltip(json_btn, "Export as JSON format (better for complex data)")
         
         # CSV button
-        csv_btn = tk.Button(
+        csv_btn = ttk.Button(
             button_container,
-            text="📊\nCSV",
+            text="📊 CSV",
             command=lambda: self._select_format("csv"),
-            width=15,
-            height=2,
-            relief="raised",
-            bd=2,
-            font=('TkDefaultFont', 9, 'bold'),
-            bg='#f0f0f0',
-            activebackground='#e0e0e0'
+            style=self.theme_manager.get_button_style("primary")
         )
         csv_btn.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
         self.format_buttons["csv"] = csv_btn
@@ -328,30 +292,21 @@ class EnhancedExportDialog:
     def _select_format(self, format_name):
         """Handle export format selection."""
         self.export_format.set(format_name)
+        # When selecting a format, deselect PNG image option
+        self.export_as_image.set(False)
         self._update_format_selection()
+        self._update_image_selection()
         
     def _update_format_selection(self):
         """Update visual selection for export format."""
         current_format = self.export_format.get()
         for format_name, button in self.format_buttons.items():
-            if format_name == current_format:
-                # Selected style - green background
-                button.config(
-                    bg='#28a745',
-                    fg='white',
-                    relief="solid",
-                    bd=2,
-                    activebackground='#1e7e34'
-                )
+            if current_format and format_name == current_format:
+                # Selected style - active green style
+                button.config(style=self.theme_manager.get_button_style("active"))
             else:
-                # Unselected style
-                button.config(
-                    bg='#f0f0f0',
-                    fg='black',
-                    relief="raised",
-                    bd=2,
-                    activebackground='#e0e0e0'
-                )
+                # Unselected style - primary blue style
+                button.config(style=self.theme_manager.get_button_style("primary"))
         
     def _create_image_section(self, parent):
         """Create the image export option section with square button."""
@@ -364,23 +319,17 @@ class EnhancedExportDialog:
         section_frame.pack(fill=tk.X, padx=12, pady=6)
         
         # Container for checkbox button
-        button_container = tk.Frame(section_frame, bg='#f8f9fa')
+        button_container = ttk.Frame(section_frame, style=self.theme_manager.get_frame_style())
         button_container.pack(fill=tk.X, padx=8, pady=6)
         
         # Store button reference for styling
-        self.image_button = tk.Button(
+        self.image_button = ttk.Button(
             button_container,
-            text="💾\nSave as PNG Image",
+            text="💾 Save as PNG Image",
             command=self._toggle_image_export,
-            width=20,
-            height=2,
-            relief="raised",
-            bd=2,
-            font=('TkDefaultFont', 9, 'bold'),
-            bg='#f0f0f0',
-            activebackground='#e0e0e0'
+            style=self.theme_manager.get_button_style("primary")
         )
-        self.image_button.pack(anchor=tk.CENTER, pady=2)
+        self.image_button.pack(fill='x', pady=2)
         self.theme_manager.create_tooltip(self.image_button, "Save the plot visualization as a high-quality PNG image")
         
         # Note label
@@ -399,29 +348,21 @@ class EnhancedExportDialog:
     def _toggle_image_export(self):
         """Toggle image export option."""
         self.export_as_image.set(not self.export_as_image.get())
+        # When selecting PNG image, deselect any export format
+        if self.export_as_image.get():
+            self.export_format.set("")
+            self._update_format_selection()
         self._update_image_selection()
         
     def _update_image_selection(self):
         """Update visual selection for image export."""
         is_selected = self.export_as_image.get()
         if is_selected:
-            # Selected style - green background
-            self.image_button.config(
-                bg='#28a745',
-                fg='white',
-                relief="solid",
-                bd=2,
-                activebackground='#1e7e34'
-            )
+            # Selected style - active green style
+            self.image_button.config(style=self.theme_manager.get_button_style("active"))
         else:
-            # Unselected style
-            self.image_button.config(
-                bg='#f0f0f0',
-                fg='black',
-                relief="raised",
-                bd=2,
-                activebackground='#e0e0e0'
-            )
+            # Unselected style - primary blue style
+            self.image_button.config(style=self.theme_manager.get_button_style("primary"))
         
     def _create_filename_section(self, parent):
         """Create the filename section."""
@@ -629,71 +570,58 @@ class EnhancedExportDialog:
         button_frame.pack(fill=tk.X, padx=12, pady=(10, 8))
         
         # Store button references for styling
-        self.export_btn = tk.Button(
+        self.export_btn = ttk.Button(
             button_frame,
             text="📊 Export",
             command=self._on_export_clicked,
-            width=12,
-            height=1,
-            relief="raised",
-            bd=2,
-            font=('TkDefaultFont', 10, 'bold'),
-            bg='#007bff',
-            fg='white',
-            activebackground='#0056b3',
-            activeforeground='white'
+            style=self.theme_manager.get_button_style("primary")
         )
         self.export_btn.pack(side=tk.RIGHT, padx=(8, 0))
         self.theme_manager.create_tooltip(self.export_btn, "Execute the export with selected options")
         
-        self.cancel_btn = tk.Button(
+        self.cancel_btn = ttk.Button(
             button_frame,
             text="❌ Cancel", 
             command=self._on_cancel_clicked,
-            width=12,
-            height=1,
-            relief="raised",
-            bd=2,
-            font=('TkDefaultFont', 10, 'bold'),
-            bg='#6c757d',
-            fg='white',
-            activebackground='#5a6268',
-            activeforeground='white'
+            style=self.theme_manager.get_button_style("secondary")
         )
         self.cancel_btn.pack(side=tk.RIGHT, padx=(0, 8))
         self.theme_manager.create_tooltip(self.cancel_btn, "Cancel export and close dialog")
     
     def _on_export_clicked(self):
         """Handle export button click with visual feedback."""
-        # Change to green to show action
-        self.export_btn.config(
-            bg='#28a745',
-            activebackground='#1e7e34',
-            relief="solid"
-        )
+        # Change to active green style to show action
+        self.export_btn.config(style=self.theme_manager.get_button_style("active"))
         # Schedule the actual export after brief feedback
         self.dialog.after(150, self._on_export)
     
     def _on_cancel_clicked(self):
         """Handle cancel button click with visual feedback."""
-        # Change to darker gray to show action
-        self.cancel_btn.config(
-            bg='#5a6268',
-            activebackground='#4e555b',
-            relief="solid"
-        )
+        # Change to active style to show action
+        self.cancel_btn.config(style=self.theme_manager.get_button_style("active"))
         # Schedule the actual cancel after brief feedback
         self.dialog.after(150, self._on_cancel)
         
     def _on_export(self):
         """Handle export button click."""
-        # Save settings
-        self._save_settings()
-        
         # Get export parameters
         export_type = self.export_type.get()
         export_format = self.export_format.get()
         is_image = self.export_as_image.get()
+        
+        # Validate required selections
+        if not export_type:
+            from tkinter import messagebox
+            messagebox.showwarning("Selection Required", "Please select an Analysis Type (Histogram, Pixel Profile, or Polygon).")
+            return
+            
+        if not is_image and not export_format:
+            from tkinter import messagebox
+            messagebox.showwarning("Selection Required", "Please select either an Export Format (JSON or CSV) or choose to save as PNG image.")
+            return
+        
+        # Save settings
+        self._save_settings()
         
         # Get directory
         directory = self.dir_var.get()

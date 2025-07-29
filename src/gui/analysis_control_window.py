@@ -381,7 +381,20 @@ class AnalysisControlWindow:
         export_label = ttk.Label(export_frame, text="Export Data:", font=('TkDefaultFont', 9, 'bold'))
         export_label.pack(anchor='w', pady=(0, 5))
         
-        export_data_btn = ttk.Button(export_frame, text="📊 Export Analysis Data", command=self._export_analysis_data, style=btn_style)
+        export_data_btn = tk.Button(
+            export_frame,
+            text="📊 Export Analysis Data", 
+            command=self._export_analysis_data,
+            width=20,
+            height=1,
+            relief="raised",
+            bd=2,
+            font=('TkDefaultFont', 10, 'bold'),
+            bg='#007bff',
+            fg='white',
+            activebackground='#0056b3',
+            activeforeground='white'
+        )
         export_data_btn.pack(fill='x', pady=3)
         Tooltip(export_data_btn, "Export histogram, profile, or polygon data to CSV/JSON/PNG (Ctrl+E)")
         self.action_buttons['export_data'] = export_data_btn
@@ -992,14 +1005,39 @@ class AnalysisControlWindow:
             if self.active_states.get(section):
                 prev_button = self.action_buttons.get(self.active_states[section])
                 if prev_button and prev_button.winfo_exists():
-                    prev_button.config(style=self.theme_manager.get_button_style())
+                    # Check if it's a tk.Button or ttk.Button
+                    if isinstance(prev_button, tk.Button):
+                        # Handle tk.Button styling - restore original colors
+                        if self.active_states[section] == 'export_data':
+                            prev_button.config(
+                                bg='#007bff',
+                                fg='white',
+                                relief="raised",
+                                bd=2,
+                                activebackground='#0056b3'
+                            )
+                    else:
+                        # Handle ttk.Button styling
+                        prev_button.config(style=self.theme_manager.get_button_style())
             
             # Set new active button
             self.active_states[section] = button_key
             current_button = self.action_buttons.get(button_key)
             if current_button and current_button.winfo_exists():
-                current_button.config(style=self.theme_manager.get_button_style("active"))
-                
+                # Check if it's a tk.Button or ttk.Button
+                if isinstance(current_button, tk.Button):
+                    # Handle tk.Button styling - apply active green style
+                    current_button.config(
+                        bg='#28a745',
+                        fg='white',
+                        relief="solid",
+                        bd=2,
+                        activebackground='#1e7e34'
+                    )
+                else:
+                    # Handle ttk.Button styling
+                    current_button.config(style=self.theme_manager.get_button_style("active"))
+                    
         except Exception as e:
             if self.viewer:
                 print(f"Button state error: {e}")
