@@ -102,9 +102,9 @@ class EnhancedExportDialog:
         # Create dialog window
         self.dialog = tk.Toplevel(self.parent)
         self.dialog.title(self.title)
-        self.dialog.geometry("520x580")
-        self.dialog.minsize(500, 560)
-        self.dialog.resizable(False, False)
+        self.dialog.geometry("520x620")
+        self.dialog.minsize(500, 600)
+        self.dialog.resizable(True, True)
         
         # Make dialog modal
         self.dialog.transient(self.parent)
@@ -337,6 +337,9 @@ class EnhancedExportDialog:
         self.data_source_combo.pack(fill='x', pady=2)
         self.data_source_combo.bind('<<ComboboxSelected>>', self._on_data_source_select)
         
+        # Bind dropdown events for dynamic resizing
+        self._bind_dropdown_resize_events(self.data_source_combo)
+        
         # Set default selection (first option)
         if options:
             self.data_source_combo.current(0)
@@ -412,6 +415,9 @@ class EnhancedExportDialog:
         self.data_source_combo.pack(fill='x', pady=2)
         self.data_source_combo.bind('<<ComboboxSelected>>', self._on_data_source_select)
         
+        # Bind dropdown events for dynamic resizing
+        self._bind_dropdown_resize_events(self.data_source_combo)
+        
         # Set default selection (first option)
         if options:
             self.data_source_combo.current(0)
@@ -448,6 +454,71 @@ class EnhancedExportDialog:
         else:
             # Fallback - return display text as-is
             return display_text
+    
+    def _bind_dropdown_resize_events(self, dropdown_widget):
+        """Bind events to handle dynamic dialog resizing when dropdown opens/closes."""
+        try:
+            # Store original dialog height for restoration
+            if not hasattr(self, '_original_dialog_height'):
+                self._original_dialog_height = 620  # Current height
+            
+            def on_dropdown_open(event=None):
+                """Handle dropdown opening - expand dialog if needed."""
+                try:
+                    # Get the dropdown widget position and estimated dropdown height
+                    dropdown_values = dropdown_widget['values']
+                    if dropdown_values:
+                        # Calculate needed extra space (roughly 25px per item + padding)
+                        max_items = min(len(dropdown_values), dropdown_widget.max_dropdown_items)
+                        dropdown_height = max_items * 25 + 20  # 25px per item + padding
+                        
+                        # Get current dialog geometry
+                        geometry = self.dialog.geometry()
+                        # Format is "widthxheight+x+y" or "widthxheight-x-y"
+                        size_part = geometry.split('+')[0].split('-')[0]  # Get just "widthxheight"
+                        current_width, current_height = map(int, size_part.split('x'))
+                        
+                        # Calculate if we need more space (dropdown position + dropdown height vs dialog height)
+                        dropdown_y = dropdown_widget.winfo_rooty() - self.dialog.winfo_rooty()
+                        needed_height = dropdown_y + dropdown_widget.winfo_height() + dropdown_height + 50  # extra padding
+                        
+                        if needed_height > current_height:
+                            # Expand dialog to accommodate dropdown
+                            new_height = min(needed_height, 900)  # Cap at 900px
+                            self.dialog.geometry(f"{current_width}x{new_height}")
+                except Exception as e:
+                    print(f"Error in dropdown open handler: {e}")
+            
+            def on_dropdown_close(event=None):
+                """Handle dropdown closing - restore original dialog size."""
+                try:
+                    # Restore original height after a brief delay to avoid flicker
+                    self.dialog.after(100, lambda: self._restore_dialog_size())
+                except Exception as e:
+                    print(f"Error in dropdown close handler: {e}")
+            
+            # Bind to various events that indicate dropdown interaction
+            dropdown_widget.bind('<Button-1>', on_dropdown_open)  # Click to open
+            dropdown_widget.bind('<Down>', on_dropdown_open)  # Arrow key to open
+            dropdown_widget.bind('<space>', on_dropdown_open)  # Space to open
+            dropdown_widget.bind('<<ComboboxSelected>>', on_dropdown_close)  # Selection made
+            dropdown_widget.bind('<Escape>', on_dropdown_close)  # Escape pressed
+            dropdown_widget.bind('<FocusOut>', on_dropdown_close)  # Lost focus
+            
+        except Exception as e:
+            print(f"Error binding dropdown resize events: {e}")
+    
+    def _restore_dialog_size(self):
+        """Restore dialog to its original size."""
+        try:
+            if hasattr(self, '_original_dialog_height'):
+                geometry = self.dialog.geometry()
+                # Format is "widthxheight+x+y" or "widthxheight-x-y"
+                size_part = geometry.split('+')[0].split('-')[0]  # Get just "widthxheight"
+                current_width = size_part.split('x')[0]
+                self.dialog.geometry(f"{current_width}x{self._original_dialog_height}")
+        except Exception as e:
+            print(f"Error restoring dialog size: {e}")
                 
     def _on_data_source_select(self, event=None):
         """Handle data source selection."""
