@@ -324,14 +324,13 @@ class EnhancedExportDialog:
                 points_count = len(polygon)
                 options.append(f"🔺 Polygon {i+1}: Shape with {points_count} points")
         
-        # Create the dropdown
-        from .enhanced_widgets import ComboboxWithIndicator
-        self.data_source_combo = ComboboxWithIndicator(
+        # Create the dropdown - use regular ttk.Combobox to avoid text overlap with indicator
+        self.data_source_combo = ttk.Combobox(
             dropdown_frame,
-            theme_manager=self.theme_manager,
             textvariable=self.data_source,
             state="readonly",
-            max_dropdown_items=8
+            height=8,
+            style=self.theme_manager.get_combobox_style(enhanced=True)
         )
         self.data_source_combo['values'] = options
         self.data_source_combo.pack(fill='x', pady=2)
@@ -402,14 +401,13 @@ class EnhancedExportDialog:
             length = int(((x2 - x1)**2 + (y2 - y1)**2)**0.5)
             options.append(f"📏 Line {i+1}: From ({x1},{y1}) to ({x2},{y2}), length: {length}px")
         
-        # Create the dropdown
-        from .enhanced_widgets import ComboboxWithIndicator
-        self.data_source_combo = ComboboxWithIndicator(
+        # Create the dropdown - use regular ttk.Combobox to avoid text overlap with indicator
+        self.data_source_combo = ttk.Combobox(
             dropdown_frame,
-            theme_manager=self.theme_manager,
             textvariable=self.data_source,
             state="readonly",
-            max_dropdown_items=8
+            height=8,
+            style=self.theme_manager.get_combobox_style(enhanced=True)
         )
         self.data_source_combo['values'] = options
         self.data_source_combo.pack(fill='x', pady=2)
@@ -469,7 +467,8 @@ class EnhancedExportDialog:
                     dropdown_values = dropdown_widget['values']
                     if dropdown_values:
                         # Calculate needed extra space (roughly 25px per item + padding)
-                        max_items = min(len(dropdown_values), dropdown_widget.max_dropdown_items)
+                        # For regular ttk.Combobox, use height attribute or default to 8
+                        max_items = min(len(dropdown_values), getattr(dropdown_widget, 'max_dropdown_items', dropdown_widget['height']))
                         dropdown_height = max_items * 25 + 20  # 25px per item + padding
                         
                         # Get current dialog geometry
