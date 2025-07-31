@@ -1,3 +1,45 @@
+"""
+Theme manager test application for the Parameter image viewer.
+
+This module provides a standalone test application for validating and demonstrating
+the ThemeManager functionality. It creates a comprehensive GUI that showcases
+all theme features including button styles, tooltips, theme switching, and
+widget styling across both light and dark themes.
+
+Main Functions:
+    - main: Creates and runs the theme testing interface
+    - toggle_theme: Switches between light and dark themes (nested function)
+
+Features Tested:
+    - Light and dark theme switching
+    - Primary, secondary, and default button styles
+    - Header and default label styles
+    - Frame and labeled frame styling
+    - Tooltip functionality with theme-aware colors
+    - Theme state management and persistence
+    - Real-time theme switching without restart
+
+Dependencies:
+    - tkinter: GUI framework for test interface
+    - ThemeManager: The theme management system being tested
+    - sys/os: Path manipulation for module imports
+
+Usage:
+    python theme_test.py
+    # Opens test window with theme controls
+    
+    # Or run as module:
+    python -m src.gui.theme_test
+
+Test Coverage:
+    - Theme initialization and configuration
+    - Widget style application
+    - Dynamic theme switching
+    - Tooltip creation and styling
+    - Frame and container styling
+    - Button state and hover effects
+"""
+
 import tkinter as tk
 from tkinter import ttk
 import sys
@@ -8,8 +50,29 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from gui.theme_manager import ThemeManager
 
-def main():
-    """Test the theme manager."""
+def main() -> None:
+    """
+    Create and run the theme manager test application.
+    
+    Builds a comprehensive test interface that demonstrates all ThemeManager
+    capabilities including widget styling, theme switching, and tooltip
+    functionality. The interface provides visual validation of theme consistency
+    and interactive testing of theme features.
+    
+    The test application includes:
+    - Header and body text styling
+    - Primary, secondary, and default button styles
+    - Interactive theme switching
+    - Tooltip demonstrations
+    - Frame and container styling
+    - Real-time theme updates
+    
+    Side Effects:
+        - Creates and displays a tkinter test window
+        - Initializes ThemeManager with light theme
+        - Sets up interactive controls for theme testing
+        - Runs tkinter main event loop until window is closed
+    """
     root = tk.Tk()
     root.title("Theme Manager Test")
     root.geometry("500x400")
@@ -56,7 +119,18 @@ def main():
     theme_manager.create_tooltip(default_btn, "This is a default button")
     
     # Create a toggle button for theme
-    def toggle_theme():
+    def toggle_theme() -> None:
+        """
+        Toggle between light and dark themes and update the interface.
+        
+        Switches the theme mode, reconfigures all widgets with the new theme,
+        and updates the theme status label to reflect the current mode.
+        
+        Side Effects:
+            - Toggles theme_manager.use_dark_mode flag
+            - Reconfigures all widgets with new theme
+            - Updates theme status label text
+        """
         is_dark = theme_manager.toggle_theme()
         theme_manager.configure_theme(root)
         theme_label.config(text=f"Current Theme: {'Dark' if is_dark else 'Light'}")

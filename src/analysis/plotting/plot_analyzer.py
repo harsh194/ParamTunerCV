@@ -1,3 +1,27 @@
+"""Plotting and analysis visualization functionality for the Parameter project.
+
+This module provides comprehensive plotting capabilities for image analysis including
+pixel profiles and histograms. It handles matplotlib backend detection and compatibility
+with OpenCV applications, providing both interactive and non-interactive plotting modes.
+
+The module automatically detects the runtime environment and selects appropriate
+matplotlib backends to prevent conflicts between OpenCV and matplotlib GUI systems.
+It supports both standard matplotlib display and OpenCV window display for plots.
+
+Main Classes:
+    PlotAnalyzer: Handles creation and management of analysis plots
+
+Main Functions:
+    _test_matplotlib_backend: Tests matplotlib backend compatibility
+    _detect_opencv_context: Detects OpenCV application environment
+    _check_pyqt5_conflict: Checks for PyQt5 installation conflicts
+
+Usage:
+    analyzer = PlotAnalyzer()
+    analyzer.create_histogram_plot(image, title="Image Histogram")
+    analyzer.create_pixel_profile_plot(image, (x1, y1, x2, y2), "Pixel Profile")
+"""
+
 import cv2
 import numpy as np
 import os
@@ -5,8 +29,27 @@ import json
 import io
 from typing import List, Tuple, Optional, Dict, Any
 
-def _test_matplotlib_backend(backend_name):
-    """Test if a matplotlib backend actually works by creating a test figure."""
+def _test_matplotlib_backend(backend_name: str) -> bool:
+    """Test if a matplotlib backend actually works by creating a test figure.
+    
+    This function attempts to initialize a matplotlib backend and create a test
+    figure to verify that the backend is functional. This is necessary because
+    some backends may be installed but not properly configured.
+    
+    Args:
+        backend_name: Name of the matplotlib backend to test (e.g., 'Qt5Agg', 'TkAgg', 'Agg').
+        
+    Returns:
+        bool: True if the backend works correctly, False otherwise.
+        
+    Examples:
+        >>> if _test_matplotlib_backend('Qt5Agg'):
+        ...     print("Qt5Agg backend is available")
+        
+    Performance:
+        Time Complexity: O(1) - constant time backend test.
+        Space Complexity: O(1) - minimal memory for test figure.
+    """
     try:
         import matplotlib
         matplotlib.use(backend_name, force=True)
@@ -20,8 +63,25 @@ def _test_matplotlib_backend(backend_name):
     except Exception:
         return False
 
-def _detect_opencv_context():
-    """Detect if we're running in an OpenCV application context."""
+def _detect_opencv_context() -> bool:
+    """Detect if we're running in an OpenCV application context.
+    
+    This function checks whether OpenCV is available and imported, which
+    indicates that we're likely running within an OpenCV-based application.
+    This detection helps choose appropriate matplotlib backends that won't
+    conflict with OpenCV's event handling.
+    
+    Returns:
+        bool: True if OpenCV context is detected, False otherwise.
+        
+    Examples:
+        >>> if _detect_opencv_context():
+        ...     print("Running in OpenCV application")
+        
+    Performance:
+        Time Complexity: O(1) - simple import check.
+        Space Complexity: O(1) - no additional memory usage.
+    """
     try:
         import cv2
         # Check if OpenCV is imported (strong indicator we're in OpenCV app)
@@ -29,8 +89,25 @@ def _detect_opencv_context():
     except ImportError:
         return False
 
-def _check_pyqt5_conflict():
-    """Check if PyQt5 is installed and warn about OpenCV conflicts."""
+def _check_pyqt5_conflict() -> bool:
+    """Check if PyQt5 is installed and warn about potential OpenCV conflicts.
+    
+    This function detects the presence of PyQt5, which can cause threading
+    conflicts when used together with OpenCV applications. The combination
+    of PyQt5 and OpenCV can lead to GIL (Global Interpreter Lock) threading
+    errors in matplotlib plotting.
+    
+    Returns:
+        bool: True if PyQt5 is installed, False otherwise.
+        
+    Examples:
+        >>> if _check_pyqt5_conflict():
+        ...     print("PyQt5 detected - potential OpenCV conflicts")
+        
+    Performance:
+        Time Complexity: O(1) - simple import check.
+        Space Complexity: O(1) - no additional memory usage.
+    """
     try:
         import PyQt5
         return True
@@ -49,11 +126,9 @@ try:
     
     # Check for dangerous PyQt5 + OpenCV combination
     if opencv_detected and pyqt5_installed:
-        print("🚨 CRITICAL: PyQt5 + OpenCV detected!")
-        print("   This combination causes fatal GIL threading errors.")
-        print("   Please uninstall PyQt5: pip uninstall PyQt5")
-        print("   OpenCV applications will use Agg backend with cv2.imshow display.")
-        print("")
+        # PyQt5 + OpenCV causes fatal GIL threading errors
+        # Use Agg backend with cv2.imshow display instead
+        pass
     
     if opencv_detected:
         # In OpenCV applications, ALL interactive backends conflict with cv2.waitKey()!
@@ -62,8 +137,6 @@ try:
         backends_to_try = [
             ('Agg', 'Agg (OpenCV-compatible - plots displayed via cv2.imshow)')
         ]
-        print("🔍 OpenCV detected - using non-interactive matplotlib backend")
-        print("📊 Plots will be displayed in OpenCV windows to avoid GUI conflicts")
     else:
         # In non-OpenCV applications, prefer Qt backends
         backends_to_try = [
@@ -106,11 +179,9 @@ try:
             print("Warning: Using TkAgg backend. Qt backends are recommended for better stability.")
             print("  → Install PyQt5 for better performance: pip install PyQt5>=5.15.0")
     elif working_backend == 'Agg':
-        if opencv_detected:
-            print("✅ Agg backend selected - plots will display via OpenCV windows")
-            print("   → This completely avoids GUI event loop conflicts")
-        else:
-            print("Warning: Using non-interactive matplotlib backend. Plots may not display properly.")
+        if not opencv_detected:
+            # Only warn if not using OpenCV - Agg backend is expected with OpenCV
+            pass
     
     MATPLOTLIB_AVAILABLE = True
     
@@ -119,11 +190,65 @@ except ImportError as e:
     print(f"Warning: matplotlib not available ({e}). Pixel profile and histogram features will be disabled.")
 
 class PlotAnalyzer:
-    """Handles image analysis plotting features like pixel profiles and histograms."""
+    """Handles image analysis plotting features including pixel profiles and histograms.
+    
+    This class provides comprehensive plotting capabilities for image analysis tasks.
+    It automatically handles matplotlib backend compatibility with OpenCV applications,
+    manages thread-safe plotting operations, and provides both interactive and
+    non-interactive plotting modes.
+    
+    The class supports:
+    - Histogram plotting for color and grayscale images
+    - Pixel intensity profile plotting along lines
+    - ROI (Region of Interest) and polygon-based analysis
+    - Automatic backend selection for OpenCV compatibility
+    - Plot export functionality with high-quality rendering
+    - Thread-safe plotting operations to prevent GUI conflicts
+    
+    Attributes:
+        CONFIG_FILE (str): Path to the plot settings configuration file
+        plot_windows (Dict): Dictionary tracking open matplotlib plot windows
+        plot_settings (Dict): Current plot styling and configuration settings
+        _plot_thread (Thread): Background thread for safe plotting operations
+        _plot_queue (Queue): Queue for thread-safe plot requests
+        _thread_lock (Lock): Threading lock for synchronization
+        _plotting_active (bool): Flag indicating if plotting thread is active
+        _current_backend (str): Currently active matplotlib backend
+        _is_tkinter_backend (bool): Whether using TkAgg backend
+        _is_agg_backend (bool): Whether using Agg (non-interactive) backend
+        _opencv_detected (bool): Whether OpenCV context was detected
+    
+    Examples:
+        >>> analyzer = PlotAnalyzer()
+        >>> histogram_data = analyzer.calculate_histogram(image)
+        >>> analyzer.create_histogram_plot(image, title="Image Analysis")
+        >>> profile_data = analyzer.calculate_pixel_profile(image, (x1, y1, x2, y2))
+        >>> analyzer.create_pixel_profile_plot(image, (x1, y1, x2, y2), "Line Profile")
+    """
     
     CONFIG_FILE = os.path.join(os.path.expanduser("~"), ".parameter_plot_settings.json")
     
     def __init__(self):
+        """Initialize the PlotAnalyzer with backend detection and configuration.
+        
+        Sets up the plotting system by detecting the runtime environment,
+        configuring appropriate matplotlib backends, initializing threading
+        components for safe plotting, and loading user plot settings.
+        
+        The initialization process:
+        1. Detects matplotlib availability and OpenCV context
+        2. Sets up thread-safe plotting infrastructure
+        3. Determines optimal backend configuration
+        4. Loads user plot styling preferences
+        
+        Raises:
+            ImportError: If matplotlib is not available and plotting is attempted.
+            
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> print(f"Using backend: {analyzer._current_backend}")
+            >>> print(f"OpenCV detected: {analyzer._opencv_detected}")
+        """
         self.plot_windows = {}  # Track open matplotlib windows
         self.plot_settings = self._load_plot_settings()
         self._plot_thread = None
@@ -137,8 +262,32 @@ class PlotAnalyzer:
         self._is_agg_backend = self._current_backend == 'Agg' if MATPLOTLIB_AVAILABLE else False
         self._opencv_detected = _detect_opencv_context() if MATPLOTLIB_AVAILABLE else False
         
-    def _figure_to_opencv_image(self, fig):
-        """Convert matplotlib figure to high-quality OpenCV image for display."""
+    def _figure_to_opencv_image(self, fig) -> Optional[np.ndarray]:
+        """Convert matplotlib figure to high-quality OpenCV image for display.
+        
+        This method converts a matplotlib figure to an OpenCV-compatible image format
+        for display in OpenCV windows. It uses high-quality rendering settings to
+        ensure sharp text and lines, applies anti-aliasing, and returns the image
+        in BGR format suitable for cv2.imshow().
+        
+        Args:
+            fig: Matplotlib figure object to convert.
+            
+        Returns:
+            Optional[np.ndarray]: OpenCV image in BGR format, or None if conversion fails.
+                The image is optimized for display with high DPI and anti-aliasing.
+                
+        Examples:
+            >>> fig, ax = plt.subplots()
+            >>> ax.plot([1, 2, 3], [1, 4, 2])
+            >>> opencv_img = analyzer._figure_to_opencv_image(fig)
+            >>> if opencv_img is not None:
+            ...     cv2.imshow("Plot", opencv_img)
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of pixels in the figure.
+            Space Complexity: O(n) for the image buffer and decoded image.
+        """
         try:
             # Save figure to memory buffer with high quality settings
             buf = io.BytesIO()
@@ -174,7 +323,30 @@ class PlotAnalyzer:
             return None
         
     def _load_plot_settings(self) -> Dict[str, Any]:
-        """Load plot settings from config file."""
+        """Load plot settings from configuration file with fallback defaults.
+        
+        This method loads user-customized plot settings from a JSON configuration file
+        stored in the user's home directory. If the file doesn't exist or contains
+        errors, it returns comprehensive default settings for both histogram and
+        profile plots including styling, colors, and layout preferences.
+        
+        Returns:
+            Dict[str, Any]: Dictionary containing plot settings with keys:
+                - 'histogram_settings': Settings for histogram plots
+                - 'profile_settings': Settings for profile plots  
+                - 'presets': User-defined plot presets
+                Each settings dict contains figure_size, dpi, colors, fonts, etc.
+                
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> settings = analyzer._load_plot_settings()
+            >>> print(f"Figure size: {settings['histogram_settings']['figure_size']}")
+            >>> print(f"Line width: {settings['profile_settings']['line_width']}")
+            
+        Performance:
+            Time Complexity: O(1) - simple file read and JSON parse.
+            Space Complexity: O(1) - fixed-size configuration dictionary.
+        """
         default_settings = {
             "histogram_settings": {
                 "figure_size": (12, 7),  # Larger figure for better quality
@@ -232,8 +404,32 @@ class PlotAnalyzer:
             # If there's any error loading settings, return defaults
             return default_settings
             
-    def update_plot_settings(self, plot_type: str, settings: Dict[str, Any]):
-        """Update plot settings for the specified plot type."""
+    def update_plot_settings(self, plot_type: str, settings: Dict[str, Any]) -> None:
+        """Update plot settings for the specified plot type and save to configuration.
+        
+        This method updates the plot settings for either histogram or profile plots
+        and automatically saves the updated configuration to the user's settings file.
+        The settings are immediately available for subsequent plot operations.
+        
+        Args:
+            plot_type: Type of plot to update settings for. Should be either
+                'histogram' or 'profile'.
+            settings: Dictionary containing the new settings to apply. Should include
+                keys like 'figure_size', 'dpi', 'colors', 'line_width', etc.
+                
+        Examples:
+            >>> new_settings = {
+            ...     'figure_size': (10, 6),
+            ...     'dpi': 120,
+            ...     'line_width': 3.0,
+            ...     'colors': {'red': '#FF0000', 'blue': '#0000FF'}
+            ... }
+            >>> analyzer.update_plot_settings('histogram', new_settings)
+            
+        Performance:
+            Time Complexity: O(1) - dictionary update and file write.
+            Space Complexity: O(1) - settings dictionary storage.
+        """
         self.plot_settings[f"{plot_type}_settings"] = settings
         
         # Save settings to file
@@ -243,8 +439,32 @@ class PlotAnalyzer:
         except Exception as e:
             print(f"Error saving plot settings: {e}")
     
-    def _plot_worker(self):
-        """Worker thread for handling matplotlib operations safely."""
+    def _plot_worker(self) -> None:
+        """Worker thread for handling matplotlib operations safely in background.
+        
+        This method runs in a separate thread to handle matplotlib plotting operations
+        that might conflict with OpenCV's event handling. It processes plot requests
+        from a queue and executes them safely, preventing GUI threading conflicts
+        that can occur when matplotlib and OpenCV run in the same application.
+        
+        The worker thread:
+        1. Continuously monitors the plot request queue
+        2. Processes histogram and profile plot requests
+        3. Handles thread-safe matplotlib operations
+        4. Provides proper cleanup and error handling
+        
+        Note:
+            This method is intended for internal use only and runs automatically
+            when the plotting thread is started.
+            
+        Examples:
+            >>> # This method runs automatically when plot thread starts
+            >>> analyzer._start_plot_thread()  # Starts worker thread
+            
+        Performance:
+            Time Complexity: O(∞) - runs continuously until stopped.
+            Space Complexity: O(1) - minimal memory for queue processing.
+        """
         print("Plot worker thread started")
         while self._plotting_active:
             try:
@@ -274,8 +494,27 @@ class PlotAnalyzer:
                 threading.Event().wait(0.1)
         print("Plot worker thread ended")
     
-    def _start_plot_thread(self):
-        """Start the plotting thread if not already running."""
+    def _start_plot_thread(self) -> None:
+        """Start the plotting thread if not already running.
+        
+        This method initializes and starts a background worker thread for handling
+        matplotlib plotting operations safely. The thread is only started if matplotlib
+        is available and no plotting thread is currently active. This prevents
+        threading conflicts between matplotlib and OpenCV GUI operations.
+        
+        The method uses thread-safe locking to ensure only one plotting thread
+        runs at a time and properly initializes the worker thread as a daemon
+        thread that will automatically terminate when the main application exits.
+        
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> analyzer._start_plot_thread()  # Start background plotting
+            >>> # Now safe to queue plot operations
+            
+        Performance:
+            Time Complexity: O(1) - simple thread initialization.
+            Space Complexity: O(1) - minimal thread overhead.
+        """
         if not MATPLOTLIB_AVAILABLE:
             return
             
@@ -285,8 +524,30 @@ class PlotAnalyzer:
                 self._plot_thread = threading.Thread(target=self._plot_worker, daemon=True)
                 self._plot_thread.start()
     
-    def _stop_plot_thread(self):
-        """Stop the plotting thread."""
+    def _stop_plot_thread(self) -> None:
+        """Stop the plotting thread and clean up resources.
+        
+        This method safely stops the background plotting thread by setting the
+        termination flag, sending a shutdown signal through the queue, and waiting
+        for the thread to complete. It includes proper cleanup with timeout handling
+        to prevent hanging if the thread doesn't respond promptly.
+        
+        The method:
+        1. Sets the plotting_active flag to False
+        2. Sends None as a shutdown signal to the queue
+        3. Waits up to 2 seconds for thread termination
+        4. Uses thread-safe locking for coordination
+        
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> analyzer._start_plot_thread()
+            >>> # ... do some plotting work ...
+            >>> analyzer._stop_plot_thread()  # Clean shutdown
+            
+        Performance:
+            Time Complexity: O(1) - bounded by 2-second timeout.
+            Space Complexity: O(1) - no additional memory usage.
+        """
         if not MATPLOTLIB_AVAILABLE:
             return
             
@@ -298,8 +559,37 @@ class PlotAnalyzer:
                 if self._plot_thread and self._plot_thread.is_alive():
                     self._plot_thread.join(timeout=2)
     
-    def create_pixel_profile_plot(self, image: np.ndarray, line_coords: Tuple[int, int, int, int], title: str = "Pixel Profile"):
-        """Create a pixel intensity profile plot along a line."""
+    def create_pixel_profile_plot(self, image: np.ndarray, line_coords: Tuple[int, int, int, int], title: str = "Pixel Profile") -> None:
+        """Create a pixel intensity profile plot along a line.
+        
+        This method generates a plot showing pixel intensity values along a specified
+        line in the image. For color images, it plots separate curves for each channel
+        (red, green, blue). For grayscale images, it plots a single intensity curve.
+        The plot shows distance along the line on the x-axis and pixel intensity values
+        on the y-axis.
+        
+        The method automatically handles backend compatibility with OpenCV applications
+        by using appropriate threading or direct execution based on the detected
+        environment and matplotlib backend.
+        
+        Args:
+            image: Input image as numpy array (either color or grayscale).
+            line_coords: Tuple of (x1, y1, x2, y2) defining the line endpoints
+                in pixel coordinates.
+            title: Title for the plot. Defaults to "Pixel Profile".
+            
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> # Create profile from top-left to bottom-right
+            >>> analyzer.create_pixel_profile_plot(image, (0, 0, 100, 100), "Diagonal Profile")
+            >>> # Create horizontal profile across image center
+            >>> h, w = image.shape[:2]
+            >>> analyzer.create_pixel_profile_plot(image, (0, h//2, w-1, h//2), "Horizontal Profile")
+            
+        Performance:
+            Time Complexity: O(n) where n is the length of the line in pixels.
+            Space Complexity: O(n) for storing pixel values along the line.
+        """
         if not MATPLOTLIB_AVAILABLE:
             print("Matplotlib not available for pixel profile plotting")
             return
@@ -332,8 +622,40 @@ class PlotAnalyzer:
             # Non-OpenCV Qt backends can run in main thread
             self._create_pixel_profile_plot_internal(image.copy(), line_coords, title)
     
-    def _create_pixel_profile_plot_internal(self, image: np.ndarray, line_coords: Tuple[int, int, int, int], title: str = "Pixel Profile"):
-        """Internal method for creating pixel profile plots (runs in separate thread)."""
+    def _create_pixel_profile_plot_internal(self, image: np.ndarray, line_coords: Tuple[int, int, int, int], title: str = "Pixel Profile") -> None:
+        """Internal method for creating pixel profile plots with thread-safe execution.
+        
+        This internal method handles the actual matplotlib plotting operations for pixel
+        intensity profiles. It runs in either the main thread or a worker thread depending
+        on the backend configuration and OpenCV compatibility requirements. The method
+        creates high-quality plots with customizable styling and handles both interactive
+        and non-interactive display modes.
+        
+        The method performs the following operations:
+        1. Extracts pixel values along the specified line using Bresenham's algorithm
+        2. Calculates distances from the line start point
+        3. Creates matplotlib figure with user-configured styling
+        4. Plots separate curves for each color channel (or single curve for grayscale)
+        5. Handles display based on backend type (matplotlib vs OpenCV windows)
+        6. Stores plot references for later access and cleanup
+        
+        Args:
+            image: Input image as numpy array (color or grayscale).
+            line_coords: Tuple of (x1, y1, x2, y2) defining line endpoints in pixel coordinates.
+            title: Title for the plot display. Defaults to "Pixel Profile".
+            
+        Note:
+            This method is for internal use only and should not be called directly.
+            Use create_pixel_profile_plot() instead for public API access.
+            
+        Examples:
+            >>> # Internal usage (not recommended for direct calls)
+            >>> analyzer._create_pixel_profile_plot_internal(image, (0, 0, 100, 100), "Internal Profile")
+            
+        Performance:
+            Time Complexity: O(n + m) where n is line length and m is plot rendering.
+            Space Complexity: O(n) for pixel values and plot data structures.
+        """
         if not MATPLOTLIB_AVAILABLE:
             return
         
@@ -486,8 +808,41 @@ class PlotAnalyzer:
         except Exception as e:
             print(f"Error creating profile plot: {e}")
 
-    def create_histogram_plot(self, image: np.ndarray, roi: Optional[Tuple[int, int, int, int]] = None, polygon: Optional[List[Tuple[int, int]]] = None, title: str = "Histogram"):
-        """Create a histogram plot for the image, ROI, or polygon."""
+    def create_histogram_plot(self, image: np.ndarray, roi: Optional[Tuple[int, int, int, int]] = None, polygon: Optional[List[Tuple[int, int]]] = None, title: str = "Histogram") -> None:
+        """Create a histogram plot for the image with optional ROI or polygon masking.
+        
+        This method generates a histogram plot showing the distribution of pixel intensities
+        in the image. For color images, it displays separate histograms for each channel
+        (blue, green, red). For grayscale images, it shows a single intensity histogram.
+        The method supports region-of-interest (ROI) analysis and polygon masking for
+        selective area analysis.
+        
+        The method automatically handles matplotlib backend compatibility with OpenCV
+        applications by choosing appropriate threading strategies or direct execution
+        based on the detected environment configuration.
+        
+        Args:
+            image: Input image as numpy array (color or grayscale).
+            roi: Optional ROI as (x, y, width, height) tuple for rectangular region analysis.
+                If provided, only pixels within this rectangle are included in the histogram.
+            polygon: Optional list of (x, y) coordinate tuples defining a polygon mask.
+                If provided, only pixels within the polygon are included in the histogram.
+            title: Title for the histogram plot. Defaults to "Histogram".
+            
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> # Full image histogram
+            >>> analyzer.create_histogram_plot(image, title="Full Image Histogram")
+            >>> # ROI-based histogram
+            >>> analyzer.create_histogram_plot(image, roi=(100, 100, 200, 150), title="ROI Histogram")
+            >>> # Polygon-masked histogram
+            >>> polygon_coords = [(50, 50), (150, 50), (100, 150)]
+            >>> analyzer.create_histogram_plot(image, polygon=polygon_coords, title="Polygon Histogram")
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of pixels in the analysis region.
+            Space Complexity: O(1) for histogram bins (fixed 256 bins per channel).
+        """
         if not MATPLOTLIB_AVAILABLE:
             print("Matplotlib not available for histogram plotting")
             return
@@ -539,8 +894,42 @@ class PlotAnalyzer:
                 title
             )
     
-    def _create_histogram_plot_internal(self, image: np.ndarray, roi: Optional[Tuple[int, int, int, int]] = None, polygon: Optional[List[Tuple[int, int]]] = None, title: str = "Histogram"):
-        """Internal method for creating histogram plots (runs in separate thread)."""
+    def _create_histogram_plot_internal(self, image: np.ndarray, roi: Optional[Tuple[int, int, int, int]] = None, polygon: Optional[List[Tuple[int, int]]] = None, title: str = "Histogram") -> None:
+        """Internal method for creating histogram plots with thread-safe execution.
+        
+        This internal method handles the actual matplotlib plotting operations for histogram
+        visualization. It runs in either the main thread or a worker thread depending on
+        backend compatibility requirements. The method processes ROI and polygon masks,
+        calculates histogram data using OpenCV, and creates high-quality matplotlib plots
+        with user-configurable styling.
+        
+        The method performs comprehensive histogram analysis:
+        1. Validates input image and parameters
+        2. Creates polygon masks using OpenCV fillPoly if specified
+        3. Extracts ROI regions while maintaining proper bounds checking
+        4. Calculates histograms for each color channel using cv2.calcHist
+        5. Creates matplotlib figure with customizable styling and colors
+        6. Handles display based on backend type (interactive vs OpenCV windows)
+        7. Stores plot references for cleanup and export functionality
+        
+        Args:
+            image: Input image as numpy array (color or grayscale).
+            roi: Optional ROI as (x, y, width, height) tuple for analysis region.
+            polygon: Optional list of (x, y) coordinate tuples for polygon masking.
+            title: Title for the histogram display. Defaults to "Histogram".
+            
+        Note:
+            This method is for internal use only and should not be called directly.
+            Use create_histogram_plot() instead for public API access.
+            
+        Examples:
+            >>> # Internal usage (not recommended for direct calls)
+            >>> analyzer._create_histogram_plot_internal(image, roi=(0,0,100,100), title="Internal Histogram")
+            
+        Performance:
+            Time Complexity: O(n + m) where n is pixels in analysis region and m is plot rendering.
+            Space Complexity: O(c) where c is number of channels (1 for grayscale, 3 for color).
+        """
         if not MATPLOTLIB_AVAILABLE:
             return
         
@@ -718,7 +1107,40 @@ class PlotAnalyzer:
             print(f"Error creating histogram plot: {e}")
 
     def _get_line_points(self, x1: int, y1: int, x2: int, y2: int) -> List[Tuple[int, int]]:
-        """Get all points along a line using Bresenham's algorithm."""
+        """Get all points along a line using Bresenham's line drawing algorithm.
+        
+        This method implements Bresenham's algorithm to generate all integer pixel
+        coordinates that lie along the line between two specified endpoints. The
+        algorithm ensures that the line is drawn with minimal aliasing and includes
+        all pixels that the line passes through, making it ideal for pixel-perfect
+        line analysis in image processing applications.
+        
+        Bresenham's algorithm is efficient and produces visually smooth lines by
+        determining which pixels should be illuminated to form a close approximation
+        to a straight line between two endpoints.
+        
+        Args:
+            x1: X-coordinate of the line start point.
+            y1: Y-coordinate of the line start point.
+            x2: X-coordinate of the line end point.
+            y2: Y-coordinate of the line end point.
+            
+        Returns:
+            List[Tuple[int, int]]: List of (x, y) coordinate tuples representing
+                all pixels along the line from (x1, y1) to (x2, y2) inclusive.
+                
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> points = analyzer._get_line_points(0, 0, 3, 3)
+            >>> print(points)  # [(0,0), (1,1), (2,2), (3,3)]
+            >>> # Horizontal line
+            >>> h_points = analyzer._get_line_points(0, 5, 5, 5)
+            >>> print(h_points)  # [(0,5), (1,5), (2,5), (3,5), (4,5), (5,5)]
+            
+        Performance:
+            Time Complexity: O(max(|x2-x1|, |y2-y1|)) - linear in line length.
+            Space Complexity: O(max(|x2-x1|, |y2-y1|)) - for storing all line points.
+        """
         points = []
         dx = abs(x2 - x1)
         dy = abs(y2 - y1)
@@ -745,7 +1167,49 @@ class PlotAnalyzer:
         return points
     
     def calculate_histogram(self, image: np.ndarray, roi: Optional[Tuple[int, int, int, int]] = None, polygon: Optional[List[Tuple[int, int]]] = None) -> Dict[str, np.ndarray]:
-        """Calculate histogram data for the image, ROI, or polygon."""
+        """Calculate histogram data for the image with optional ROI or polygon masking.
+        
+        This method computes histogram data without creating visualizations, making it
+        suitable for data analysis and export operations. It calculates intensity
+        distributions for all color channels in the specified image region using
+        OpenCV's optimized histogram calculation functions.
+        
+        The method supports flexible region analysis through ROI rectangles or
+        arbitrary polygon shapes, enabling focused analysis of specific image areas.
+        For color images, it calculates separate histograms for blue, green, and red
+        channels. For grayscale images, it calculates a single intensity histogram.
+        
+        Args:
+            image: Input image as numpy array (color or grayscale).
+            roi: Optional ROI as (x, y, width, height) tuple for rectangular region analysis.
+                If provided, only pixels within this rectangle are included.
+            polygon: Optional list of (x, y) coordinate tuples defining a polygon mask.
+                If provided, only pixels within the polygon are included.
+                
+        Returns:
+            Dict[str, np.ndarray]: Dictionary containing histogram data with keys:
+                - 'bins': Array of intensity bin values (0-255)
+                - 'roi': Copy of the ROI parameter for reference
+                - 'polygon': Copy of the polygon parameter for reference
+                - For color images: 'blue', 'green', 'red' keys with histogram arrays
+                - For grayscale images: 'gray' key with histogram array
+                Returns empty dict if image is invalid or region has no pixels.
+                
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> # Full image histogram data
+            >>> hist_data = analyzer.calculate_histogram(image)
+            >>> print(f"Red channel max: {max(hist_data['red'])}")
+            >>> # ROI-based histogram data
+            >>> roi_hist = analyzer.calculate_histogram(image, roi=(100, 100, 200, 150))
+            >>> print(f"ROI blue channel: {len(roi_hist['blue'])} bins")
+            >>> # Access bin centers
+            >>> bins = hist_data['bins']  # [0, 1, 2, ..., 255]
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of pixels in the analysis region.
+            Space Complexity: O(c) where c is the number of channels (256 bins per channel).
+        """
         if image is None or image.size == 0:
             return {}
         
@@ -790,7 +1254,47 @@ class PlotAnalyzer:
         return result
     
     def calculate_pixel_profile(self, image: np.ndarray, line_coords: Tuple[int, int, int, int]) -> Dict[str, np.ndarray]:
-        """Calculate pixel intensity profile along a line."""
+        """Calculate pixel intensity profile data along a specified line.
+        
+        This method computes pixel intensity values along a line without creating
+        visualizations, making it suitable for data analysis and export operations.
+        It uses Bresenham's algorithm to determine all pixels along the line and
+        extracts their intensity values for each color channel.
+        
+        The method calculates distances from the line start point and collects
+        corresponding pixel intensities, providing comprehensive data for profile
+        analysis. For color images, it extracts separate profiles for blue, green,
+        and red channels. For grayscale images, it extracts a single intensity profile.
+        
+        Args:
+            line_coords: Tuple of (x1, y1, x2, y2) defining the line endpoints
+                in pixel coordinates within the image bounds.
+                
+        Returns:
+            Dict[str, np.ndarray]: Dictionary containing profile data with keys:
+                - 'distances': Array of distance values from line start point
+                - 'line_coords': Copy of input line coordinates for reference
+                - 'points': List of (x, y) pixel coordinates along the line
+                - For color images: 'blue', 'green', 'red' keys with intensity arrays
+                - For grayscale images: 'gray' key with intensity array
+                Returns empty dict if image is invalid or line has insufficient points.
+                
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> # Diagonal profile across image
+            >>> profile_data = analyzer.calculate_pixel_profile(image, (0, 0, 100, 100))
+            >>> distances = profile_data['distances']
+            >>> red_intensities = profile_data['red']
+            >>> print(f"Profile length: {len(distances)} pixels")
+            >>> print(f"Max red intensity: {max(red_intensities)}")
+            >>> # Horizontal profile
+            >>> h_profile = analyzer.calculate_pixel_profile(image, (0, 50, 200, 50))
+            >>> print(f"Horizontal profile points: {len(h_profile['points'])}")
+            
+        Performance:
+            Time Complexity: O(n) where n is the length of the line in pixels.
+            Space Complexity: O(n*c) where c is the number of channels.
+        """
         if image is None or image.size == 0:
             return {}
         
@@ -824,8 +1328,36 @@ class PlotAnalyzer:
         
         return result
     
-    def close_all_plots(self):
-        """Close all open plot windows (thread-safe)."""
+    def close_all_plots(self) -> None:
+        """Close all open plot windows with thread-safe cleanup operations.
+        
+        This method performs comprehensive cleanup of all plotting resources including
+        matplotlib figures and OpenCV windows. It handles both interactive matplotlib
+        backends and Agg backend with OpenCV display, ensuring proper resource cleanup
+        to prevent memory leaks and window artifacts.
+        
+        The cleanup process includes:
+        1. Thread-safe closure of all matplotlib figure windows
+        2. Clearing the plot windows tracking dictionary
+        3. Closing OpenCV windows created for Agg backend display
+        4. Clearing OpenCV window tracking sets
+        5. Proper error handling to ensure cleanup continues even if individual operations fail
+        
+        This method is automatically called during analyzer cleanup but can also be
+        called manually when immediate plot closure is needed.
+        
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> analyzer.create_histogram_plot(image)
+            >>> analyzer.create_pixel_profile_plot(image, (0, 0, 100, 100))
+            >>> # Close all created plots
+            >>> analyzer.close_all_plots()
+            >>> print(f"Remaining plots: {len(analyzer.plot_windows)}")  # Should be 0
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of open plot windows.
+            Space Complexity: O(1) - releases memory used by plot tracking.
+        """
         if not MATPLOTLIB_AVAILABLE:
             print("   → Matplotlib not available, skipping plot cleanup")
             return
@@ -870,7 +1402,40 @@ class PlotAnalyzer:
             print(f"Error closing plots: {e}")
     
     def save_last_histogram_plot(self, filename: str, dpi: int = 200) -> bool:
-        """Save the last created histogram plot as an image."""
+        """Save the last created histogram plot as a high-quality image file.
+        
+        This method exports the most recently created histogram plot to an image file
+        with configurable quality settings. It handles both interactive matplotlib
+        backends and Agg backend with OpenCV display, automatically choosing the
+        appropriate save method based on the current backend configuration.
+        
+        For Agg backend with OpenCV display, it saves the stored high-resolution
+        OpenCV image directly. For interactive backends, it uses matplotlib's
+        savefig functionality with optimized settings for publication-quality output.
+        
+        Args:
+            filename: Output filename with extension (e.g., 'histogram.png', 'plot.jpg').
+                The file format is determined by the extension.
+            dpi: Dots per inch for image quality. Higher values produce sharper images
+                but larger files. Defaults to 200 for high-quality output.
+                
+        Returns:
+            bool: True if the plot was successfully saved, False otherwise.
+            
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> analyzer.create_histogram_plot(image, title="RGB Histogram")
+            >>> # Save with default high quality
+            >>> success = analyzer.save_last_histogram_plot("rgb_histogram.png")
+            >>> if success:
+            ...     print("Histogram saved successfully")
+            >>> # Save with custom DPI
+            >>> analyzer.save_last_histogram_plot("high_res_histogram.png", dpi=300)
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of pixels in the plot image.
+            Space Complexity: O(n) for temporary image buffer during save operation.
+        """
         if not MATPLOTLIB_AVAILABLE:
             print("Matplotlib not available for plot saving")
             return False
@@ -910,7 +1475,40 @@ class PlotAnalyzer:
             return False
     
     def save_last_profile_plot(self, filename: str, dpi: int = 200) -> bool:
-        """Save the last created profile plot as an image."""
+        """Save the last created pixel profile plot as a high-quality image file.
+        
+        This method exports the most recently created pixel profile plot to an image
+        file with configurable quality settings. It handles both interactive matplotlib
+        backends and Agg backend with OpenCV display, automatically choosing the
+        appropriate save method based on the current backend configuration.
+        
+        For Agg backend with OpenCV display, it saves the stored high-resolution
+        OpenCV image directly. For interactive backends, it uses matplotlib's
+        savefig functionality with optimized settings for publication-quality output.
+        
+        Args:
+            filename: Output filename with extension (e.g., 'profile.png', 'line_plot.jpg').
+                The file format is determined by the extension.
+            dpi: Dots per inch for image quality. Higher values produce sharper images
+                but larger files. Defaults to 200 for high-quality output.
+                
+        Returns:
+            bool: True if the plot was successfully saved, False otherwise.
+            
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> analyzer.create_pixel_profile_plot(image, (0, 0, 100, 100), "Diagonal Profile")
+            >>> # Save with default high quality
+            >>> success = analyzer.save_last_profile_plot("diagonal_profile.png")
+            >>> if success:
+            ...     print("Profile plot saved successfully")
+            >>> # Save with custom DPI for publication
+            >>> analyzer.save_last_profile_plot("publication_profile.png", dpi=300)
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of pixels in the plot image.
+            Space Complexity: O(n) for temporary image buffer during save operation.
+        """
         if not MATPLOTLIB_AVAILABLE:
             print("Matplotlib not available for plot saving")
             return False
@@ -949,8 +1547,35 @@ class PlotAnalyzer:
             print(f"Error saving profile plot: {e}")
             return False
     
-    def cleanup(self):
-        """Clean up the plot analyzer and stop threading."""
+    def cleanup(self) -> None:
+        """Clean up the plot analyzer and stop all threading operations.
+        
+        This method performs comprehensive cleanup of the PlotAnalyzer instance,
+        ensuring proper resource deallocation and thread termination. It should be
+        called when the analyzer is no longer needed to prevent memory leaks and
+        ensure clean application shutdown.
+        
+        The cleanup process includes:
+        1. Closing all open plot windows (matplotlib and OpenCV)
+        2. Stopping the background plotting thread
+        3. Clearing all plot tracking data structures
+        4. Releasing threading resources (locks, queues)
+        
+        This method is automatically called by the destructor (__del__) but can
+        also be called manually for explicit cleanup control.
+        
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> analyzer.create_histogram_plot(image)
+            >>> analyzer.create_pixel_profile_plot(image, (0, 0, 100, 100))
+            >>> # Explicitly clean up when done
+            >>> analyzer.cleanup()
+            >>> # Analyzer should not be used after cleanup
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of open plots and threads.
+            Space Complexity: O(1) - releases all tracked resources.
+        """
         if not MATPLOTLIB_AVAILABLE:
             return
             
@@ -963,8 +1588,33 @@ class PlotAnalyzer:
         except Exception as e:
             print(f"Error during cleanup: {e}")
     
-    def __del__(self):
-        """Destructor to ensure proper cleanup."""
+    def __del__(self) -> None:
+        """Destructor to ensure proper cleanup when the object is garbage collected.
+        
+        This special method is automatically called by Python's garbage collector
+        when the PlotAnalyzer instance is being destroyed. It ensures that all
+        resources are properly cleaned up even if the user forgets to call cleanup()
+        explicitly, preventing resource leaks and orphaned threads.
+        
+        The destructor calls the cleanup() method within a try-except block to
+        handle any potential errors during the destruction process without raising
+        exceptions that could interfere with garbage collection.
+        
+        Note:
+            While this provides automatic cleanup, it's recommended to call cleanup()
+            explicitly for deterministic resource management, as the timing of
+            destructor execution depends on Python's garbage collection behavior.
+            
+        Examples:
+            >>> analyzer = PlotAnalyzer()
+            >>> analyzer.create_histogram_plot(image)
+            >>> # When analyzer goes out of scope, __del__ is called automatically
+            >>> del analyzer  # Explicit deletion triggers __del__
+            
+        Performance:
+            Time Complexity: Same as cleanup() - O(n) where n is number of resources.
+            Space Complexity: O(1) - releases all resources without allocation.
+        """
         try:
             self.cleanup()
         except:

@@ -1,3 +1,30 @@
+"""
+Analysis control window module for the Parameter image viewer application.
+
+This module provides a comprehensive GUI interface for controlling image analysis
+operations in the Parameter project. It includes functionality for ROI selection,
+analysis tools (histograms, profiles, thresholding), drawing management, and
+data export capabilities.
+
+Main Classes:
+    - Tooltip: Provides tooltip functionality for GUI widgets
+    - AnalysisControlWindow: Main control window for analysis operations
+
+The module integrates with various analysis components including thresholding
+managers, theme managers, and export dialogs to provide a unified interface
+for image analysis workflows.
+
+Dependencies:
+    - tkinter: GUI framework for the control window
+    - ThresholdingManager: Handles image thresholding operations
+    - ThemeManager: Manages visual themes and styling
+    - EnhancedExportDialog: Advanced export functionality (optional)
+
+Usage:
+    control_window = AnalysisControlWindow(viewer)
+    control_window.create_window()
+"""
+
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -8,7 +35,6 @@ from .enhanced_widgets import ComboboxWithIndicator
 try:
     from .enhanced_export_dialog import EnhancedExportDialog
     ENHANCED_EXPORT_AVAILABLE = True
-    print("✅ EnhancedExportDialog imported successfully")
 except ImportError as e:
     ENHANCED_EXPORT_AVAILABLE = False
     print(f"❌ Failed to import EnhancedExportDialog: {e}")
@@ -34,16 +60,83 @@ except ImportError:
 
 class Tooltip:
     """
-    Create a tooltip for a given widget.
+    Create a tooltip widget that displays helpful text when hovering over GUI elements.
+    
+    This class provides a simple tooltip mechanism for tkinter widgets, showing
+    informative text when the user hovers their mouse over the associated widget.
+    The tooltip appears as a small popup window with a light yellow background.
+    
+    Attributes:
+        widget: The tkinter widget this tooltip is attached to.
+        text (str): The text content displayed in the tooltip.
+        tooltip_window: The popup window displaying the tooltip (None when hidden).
+    
+    Examples:
+        >>> button = ttk.Button(root, text="Click me")
+        >>> tooltip = Tooltip(button, "This button performs an action")
+        # Tooltip will appear when hovering over the button
     """
-    def __init__(self, widget, text):
+    def __init__(self, widget, text: str) -> None:
+        """
+        Initialize a tooltip for the specified widget.
+        
+        Creates a tooltip instance that will display helpful text when the user
+        hovers over the associated widget. Sets up event bindings for mouse
+        enter and leave events to control tooltip visibility.
+        
+        Args:
+            widget: The tkinter widget to attach the tooltip to. Must be a valid
+                   tkinter widget with bind() and winfo_* methods.
+            text: The text content to display in the tooltip. Should be concise
+                 and informative about the widget's functionality.
+        
+        Returns:
+            None: This is a constructor method.
+            
+        Examples:
+            >>> import tkinter as tk
+            >>> from tkinter import ttk
+            >>> root = tk.Tk()
+            >>> button = ttk.Button(root, text="Click me")
+            >>> tooltip = Tooltip(button, "This button performs an action")
+            >>> # Tooltip will appear when hovering over the button
+            
+        Performance:
+            Time Complexity: O(1) - Simple attribute assignment and event binding.
+            Space Complexity: O(1) - Fixed memory allocation for instance variables.
+        """
         self.widget = widget
         self.text = text
         self.tooltip_window = None
         self.widget.bind("<Enter>", self.show_tooltip)
         self.widget.bind("<Leave>", self.hide_tooltip)
 
-    def show_tooltip(self, event):
+    def show_tooltip(self, event) -> None:
+        """
+        Display the tooltip popup window at the cursor location.
+        
+        Creates and shows a popup window containing the tooltip text,
+        positioned slightly offset from the widget's location. The tooltip
+        appears as a small window with light yellow background and black text.
+        
+        Args:
+            event: The tkinter event that triggered the tooltip display.
+                  Contains information about the mouse enter event.
+        
+        Returns:
+            None: This method displays the tooltip but returns nothing.
+            
+        Examples:
+            >>> # This method is typically called automatically by tkinter
+            >>> # when mouse enters the widget, but can be called manually:
+            >>> tooltip = Tooltip(widget, "Help text")
+            >>> event = type('Event', (), {})()  # Mock event
+            >>> tooltip.show_tooltip(event)
+            
+        Performance:
+            Time Complexity: O(1) - Widget creation and positioning operations.
+            Space Complexity: O(1) - Single tooltip window creation.
+        """
         x, y, _, _ = self.widget.bbox("insert")
         x += self.widget.winfo_rootx() + 25
         y += self.widget.winfo_rooty() + 25
@@ -57,15 +150,95 @@ class Tooltip:
                          font=("tahoma", "8", "normal"))
         label.pack(ipadx=1)
 
-    def hide_tooltip(self, event):
+    def hide_tooltip(self, event) -> None:
+        """
+        Hide and destroy the tooltip popup window.
+        
+        Removes the tooltip popup from the screen and cleans up resources.
+        Safely handles cases where no tooltip is currently displayed.
+        
+        Args:
+            event: The tkinter event that triggered the tooltip hiding.
+                  Contains information about the mouse leave event.
+        
+        Returns:
+            None: This method hides the tooltip but returns nothing.
+            
+        Examples:
+            >>> # This method is typically called automatically by tkinter
+            >>> # when mouse leaves the widget, but can be called manually:
+            >>> tooltip = Tooltip(widget, "Help text")
+            >>> event = type('Event', (), {})()  # Mock event
+            >>> tooltip.hide_tooltip(event)
+            
+        Performance:
+            Time Complexity: O(1) - Single window destruction operation.
+            Space Complexity: O(1) - Memory cleanup for tooltip window.
+        """
         if self.tooltip_window:
             self.tooltip_window.destroy()
         self.tooltip_window = None
 
 class AnalysisControlWindow:
-    """Professional tkinter-based analysis control window with buttons and selectors."""
+    """
+    Professional tkinter-based analysis control window for the Parameter image viewer.
     
-    def __init__(self, viewer: 'ImageViewer'):
+    This class provides a comprehensive GUI interface for controlling image analysis
+    operations including ROI selection, drawing tools, analysis functions, and data
+    export capabilities. The window features a scrollable interface with organized
+    sections for different types of operations.
+    
+    The control window integrates with the ImageViewer to provide real-time control
+    over analysis parameters and visualization options. It supports various drawing
+    modes (rectangle, line, polygon), analysis tools (histogram, profiles, thresholding),
+    and export functionality for analysis results.
+    
+    Attributes:
+        viewer: Reference to the main ImageViewer instance.
+        window_created (bool): Flag indicating if the GUI window has been created.
+        roi_selection (int): Index of the currently selected ROI (0 for full image).
+        line_selection (int): Index of the currently selected line (0 for all lines).
+        polygon_selection (int): Index of the currently selected polygon (0 for all polygons).
+        root: The main tkinter window instance.
+        theme_manager: Manages visual themes and styling for the interface.
+        thresholding_manager: Handles image thresholding operations.
+        active_buttons (dict): Tracks the state of mode toggle buttons.
+        active_states (dict): Tracks which buttons are currently active in each section.
+    
+    Examples:
+        >>> from src.core.image_viewer import ImageViewer
+        >>> viewer = ImageViewer(config, trackbar_definitions)
+        >>> control_window = AnalysisControlWindow(viewer)
+        >>> control_window.create_window()
+        # Creates and displays the analysis control interface
+    """
+    
+    def __init__(self, viewer: 'ImageViewer') -> None:
+        """
+        Initialize the analysis control window with the specified image viewer.
+        
+        Sets up the control window's initial state, theme management, and button
+        tracking dictionaries. The window is not created until create_window() is called.
+        
+        Args:
+            viewer: The ImageViewer instance this control window will manage.
+                   Must have mouse, config, and display update capabilities.
+        
+        Returns:
+            None: This is a constructor method.
+            
+        Examples:
+            >>> from src.core.image_viewer import ImageViewer
+            >>> from src.config.viewer_config import ViewerConfig
+            >>> config = ViewerConfig()
+            >>> viewer = ImageViewer(config, [])
+            >>> control_window = AnalysisControlWindow(viewer)
+            >>> print(control_window.window_created)  # False
+            
+        Performance:
+            Time Complexity: O(1) - Simple object initialization.
+            Space Complexity: O(1) - Fixed memory allocation for state variables.
+        """
         self.viewer = viewer
         self.window_created = False
         self.roi_selection = 0
@@ -90,8 +263,35 @@ class AnalysisControlWindow:
             'export_plots': None  # Currently active export/plots button
         }
         
-    def create_window(self):
-        """Create the analysis control window with enhanced UI."""
+    def create_window(self) -> None:
+        """
+        Create and display the analysis control window with enhanced UI.
+        
+        Builds the complete GUI interface including scrollable content, themed sections,
+        and interactive controls. The window includes drawing tools, selection controls,
+        analysis functions, and export capabilities. Only creates the window if debug
+        mode is enabled and tkinter is available.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Creates window as side effect, no return value.
+            
+        Examples:
+            >>> control_window = AnalysisControlWindow(viewer)
+            >>> control_window.create_window()
+            >>> print(control_window.window_created)  # True if successful
+            >>> # Window with scrollable sections now displayed
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of UI elements created.
+            Space Complexity: O(n) for storing references to all UI components.
+            
+        Raises:
+            Exception: If window creation fails due to missing dependencies
+                      or system limitations.
+        """
         if self.window_created or not self.viewer.config.enable_debug or not TKINTER_AVAILABLE:
             return
 
@@ -166,8 +366,31 @@ class AnalysisControlWindow:
             print(f"Failed to create analysis control window: {e}")
             self.window_created = False
 
-    def _on_frame_configure(self, event):
-        """Update scroll region when the main frame size changes."""
+    def _on_frame_configure(self, event) -> None:
+        """
+        Update scroll region when the main frame size changes.
+        
+        Recalculates the scrollable area based on the actual content size
+        to ensure proper scrolling behavior when content is added or removed.
+        
+        Args:
+            event: The tkinter configure event containing size information.
+                  Includes width, height, and widget reference data.
+        
+        Returns:
+            None: Updates scroll region as side effect, no return value.
+            
+        Examples:
+            >>> # This method is called automatically by tkinter when frame resizes
+            >>> # Manual call example:
+            >>> event = type('Event', (), {'width': 400, 'height': 600})()
+            >>> control_window._on_frame_configure(event)
+            >>> # Scroll region updated to match content size
+            
+        Performance:
+            Time Complexity: O(1) - Single bbox calculation and configure call.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         try:
             # Get the actual bounding box of all content
             bbox = self.canvas.bbox("all")
@@ -186,8 +409,31 @@ class AnalysisControlWindow:
             if self.viewer:
                 print(f"Error updating scroll region: {e}")
     
-    def _on_canvas_configure(self, event):
-        """Update the scrollable frame width when the canvas is resized."""
+    def _on_canvas_configure(self, event) -> None:
+        """
+        Update the scrollable frame width when the canvas is resized.
+        
+        Ensures the scrollable content frame matches the canvas width to
+        prevent horizontal scrollbars and maintain proper layout.
+        
+        Args:
+            event: The tkinter configure event containing the new canvas dimensions.
+                  Includes width, height, and other canvas properties.
+        
+        Returns:
+            None: Updates canvas frame width as side effect, no return value.
+            
+        Examples:
+            >>> # This method is called automatically by tkinter when canvas resizes
+            >>> # Manual call example:
+            >>> event = type('Event', (), {'width': 350})()
+            >>> control_window._on_canvas_configure(event)
+            >>> # Canvas frame width now matches canvas width
+            
+        Performance:
+            Time Complexity: O(1) - Single itemconfig operation.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         try:
             # Update the width of the scrollable frame to match the canvas width
             canvas_width = event.width
@@ -197,8 +443,29 @@ class AnalysisControlWindow:
             if self.viewer:
                 print(f"Error configuring canvas: {e}")
     
-    def _bind_mousewheel(self):
-        """Bind mouse wheel scrolling to the canvas."""
+    def _bind_mousewheel(self) -> None:
+        """
+        Bind mouse wheel scrolling to the canvas for intuitive navigation.
+        
+        Sets up mouse wheel event handlers that are active when the mouse
+        is over the control window, providing smooth scrolling through the
+        interface content.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Sets up event bindings as side effect, no return value.
+            
+        Examples:
+            >>> control_window = AnalysisControlWindow(viewer)
+            >>> control_window._bind_mousewheel()
+            >>> # Mouse wheel scrolling now works when over the window
+            
+        Performance:
+            Time Complexity: O(1) - Simple event binding operations.
+            Space Complexity: O(1) - Function closure creation for event handlers.
+        """
         def _on_mousewheel(event):
             try:
                 self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
@@ -219,7 +486,33 @@ class AnalysisControlWindow:
         self.canvas.bind('<Enter>', _bind_to_mousewheel)
         self.canvas.bind('<Leave>', _unbind_from_mousewheel)
 
-    def _create_section_frame(self, parent, title):
+    def _create_section_frame(self, parent, title: str):
+        """
+        Create a themed section frame with header and separator.
+        
+        Builds a standardized section container with consistent styling,
+        including a header label and horizontal separator line.
+        
+        Args:
+            parent: The parent tkinter widget to contain this section.
+                   Must be a valid tkinter container widget.
+            title: The display title for the section header.
+                  Should be descriptive of the section's purpose.
+            
+        Returns:
+            ttk.Frame: The inner frame ready for content widgets.
+                      Configured with appropriate styling and layout.
+            
+        Examples:
+            >>> frame = control_window._create_section_frame(main_frame, "Analysis")
+            >>> button = ttk.Button(frame, text="Test Button")
+            >>> button.pack()
+            >>> # Section with header "Analysis" and separator created
+            
+        Performance:
+            Time Complexity: O(1) - Fixed number of widget creation operations.
+            Space Complexity: O(1) - Creates fixed number of frame and label widgets.
+        """
         section_frame = ttk.Frame(parent, style=self.theme_manager.get_frame_style())
         section_frame.pack(fill='x', pady=(5, 10), padx=2)
         
@@ -234,7 +527,30 @@ class AnalysisControlWindow:
         
         return inner_frame
 
-    def _create_selection_section(self, parent_frame):
+    def _create_selection_section(self, parent_frame) -> None:
+        """
+        Create the selection section with ROI, line, and polygon selectors.
+        
+        Builds dropdown selectors that allow users to choose specific regions
+        of interest, lines, or polygons for analysis operations. Each selector
+        includes tooltip help and updates the viewer's selection state.
+        
+        Args:
+            parent_frame: The parent frame to contain the selection controls.
+                         Must be a valid tkinter container widget.
+        
+        Returns:
+            None: Creates selection UI as side effect, no return value.
+            
+        Examples:
+            >>> control_window._create_selection_section(main_frame)
+            >>> # Creates ROI, Line, and Polygon dropdown selectors
+            >>> # Each with appropriate tooltips and event bindings
+            
+        Performance:
+            Time Complexity: O(1) - Fixed number of widget creation operations.
+            Space Complexity: O(1) - Creates fixed number of selector widgets.
+        """
         selection_frame = self._create_section_frame(parent_frame, "Selection")
 
         # ROI Selection
@@ -300,7 +616,30 @@ class AnalysisControlWindow:
         self.polygon_combo.bind('<<ComboboxSelected>>', self._on_polygon_select)
         Tooltip(self.polygon_combo, "Choose a specific polygon or analyze all polygons")
 
-    def _create_analysis_section(self, parent_frame):
+    def _create_analysis_section(self, parent_frame) -> None:
+        """
+        Create the analysis section with histogram, profile, and thresholding tools.
+        
+        Builds buttons for core analysis operations including histogram display,
+        pixel profile plotting, and thresholding window access. Buttons provide
+        visual feedback and keyboard shortcut integration.
+        
+        Args:
+            parent_frame: The parent frame to contain the analysis controls.
+                         Must be a valid tkinter container widget.
+        
+        Returns:
+            None: Creates analysis UI as side effect, no return value.
+            
+        Examples:
+            >>> control_window._create_analysis_section(main_frame)
+            >>> # Creates histogram, profiles, and thresholding buttons
+            >>> # Each with tooltips showing keyboard shortcuts
+            
+        Performance:
+            Time Complexity: O(1) - Fixed number of button creation operations.
+            Space Complexity: O(1) - Creates fixed number of button widgets.
+        """
         analysis_frame = self._create_section_frame(parent_frame, "Analysis")
         
         btn_style = self.theme_manager.get_button_style("primary")
@@ -327,7 +666,30 @@ class AnalysisControlWindow:
         self.action_buttons['thresholding'] = thresh_btn
         
 
-    def _create_drawing_section(self, parent_frame):
+    def _create_drawing_section(self, parent_frame) -> None:
+        """
+        Create the drawing management section with edit and clear tools.
+        
+        Builds controls for managing drawn objects including undo functionality
+        and various clear operations. Clear tools use warning styling to indicate
+        their destructive nature.
+        
+        Args:
+            parent_frame: The parent frame to contain the drawing management controls.
+                         Must be a valid tkinter container widget.
+        
+        Returns:
+            None: Creates drawing management UI as side effect, no return value.
+            
+        Examples:
+            >>> control_window._create_drawing_section(main_frame)
+            >>> # Creates undo button and clear buttons (rect, line, polygon, all)
+            >>> # Each with appropriate tooltips and warning styling
+            
+        Performance:
+            Time Complexity: O(1) - Fixed number of button creation operations.
+            Space Complexity: O(1) - Creates fixed number of button widgets.
+        """
         drawing_frame = self._create_section_frame(parent_frame, "Drawing Management")
 
         btn_style = self.theme_manager.get_button_style()
@@ -372,7 +734,30 @@ class AnalysisControlWindow:
         Tooltip(clear_all_btn, "Clear all ROIs, lines, and polygons (Ctrl+Delete)")
         self.action_buttons['clear_all'] = clear_all_btn
 
-    def _create_export_section(self, parent_frame):
+    def _create_export_section(self, parent_frame) -> None:
+        """
+        Create the export and plot management section.
+        
+        Builds controls for exporting analysis data to various formats and
+        managing matplotlib plot windows. Includes both data export and
+        plot cleanup functionality.
+        
+        Args:
+            parent_frame: The parent frame to contain the export controls.
+                         Must be a valid tkinter container widget.
+        
+        Returns:
+            None: Creates export UI as side effect, no return value.
+            
+        Examples:
+            >>> control_window._create_export_section(main_frame)
+            >>> # Creates export data button and close plots button
+            >>> # Export button opens enhanced export dialog
+            
+        Performance:
+            Time Complexity: O(1) - Fixed number of button creation operations.
+            Space Complexity: O(1) - Creates fixed number of export widgets.
+        """
         export_frame = self._create_section_frame(parent_frame, "Export & Plots")
         
         btn_style = self.theme_manager.get_button_style()
@@ -408,7 +793,30 @@ class AnalysisControlWindow:
         Tooltip(close_plots_btn, "Close all open matplotlib windows (Ctrl+W)")
         self.action_buttons['close_plots'] = close_plots_btn
     
-    def update_selectors(self):
+    def update_selectors(self) -> None:
+        """
+        Update the dropdown selectors with current ROI, line, and polygon options.
+        
+        Refreshes all selection dropdowns to reflect the current state of drawn
+        objects in the viewer. Handles boundary conditions and maintains selection
+        consistency when objects are added or removed.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Updates GUI selectors as side effect, no return value.
+            
+        Examples:
+            >>> # Add a new ROI to the viewer
+            >>> viewer.mouse.draw_rects.append((10, 10, 50, 50))
+            >>> control_window.update_selectors()
+            >>> # ROI dropdown now shows "Full Image", "ROI 1"
+            
+        Performance:
+            Time Complexity: O(n) where n is total number of drawn objects.
+            Space Complexity: O(n) for creating option lists for dropdowns.
+        """
         if not self.window_created: return
         try:
             # Update ROI selector
@@ -442,7 +850,31 @@ class AnalysisControlWindow:
             print(f"Error updating selectors: {e}")
             pass
     
-    def _on_roi_select(self, event):
+    def _on_roi_select(self, event) -> None:
+        """
+        Handle ROI selection changes from the dropdown.
+        
+        Updates the viewer's selected ROI based on user selection and triggers
+        display updates to highlight the chosen region. Validates the selection
+        and maintains consistency between the GUI and viewer state.
+        
+        Args:
+            event: The tkinter selection event from the ROI dropdown.
+                  Contains information about the ComboboxSelected event.
+        
+        Returns:
+            None: Updates viewer state as side effect, no return value.
+            
+        Examples:
+            >>> # User selects "ROI 2" from dropdown
+            >>> event = type('Event', (), {})()  # Mock event
+            >>> control_window._on_roi_select(event)
+            >>> print(viewer.mouse.selected_roi)  # 1 (0-based index)
+            
+        Performance:
+            Time Complexity: O(1) - Simple selection updates and validation.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         selection = self.roi_var.get()
         self.roi_selection = 0 if selection == "Full Image" else int(selection.split()[-1])
         
@@ -462,7 +894,31 @@ class AnalysisControlWindow:
         
         self.viewer.update_display()
 
-    def _on_line_select(self, event):
+    def _on_line_select(self, event) -> None:
+        """
+        Handle line selection changes from the dropdown.
+        
+        Updates the viewer's selected line based on user selection and triggers
+        display updates to highlight the chosen line. Validates the selection
+        and maintains consistency between the GUI and viewer state.
+        
+        Args:
+            event: The tkinter selection event from the line dropdown.
+                  Contains information about the ComboboxSelected event.
+        
+        Returns:
+            None: Updates viewer state as side effect, no return value.
+            
+        Examples:
+            >>> # User selects "Line 3" from dropdown
+            >>> event = type('Event', (), {})()  # Mock event
+            >>> control_window._on_line_select(event)
+            >>> print(viewer.mouse.selected_line)  # 2 (0-based index)
+            
+        Performance:
+            Time Complexity: O(1) - Simple selection updates and validation.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         selection = self.line_var.get()
         self.line_selection = 0 if selection == "All Lines" else int(selection.split()[-1])
         
@@ -482,7 +938,31 @@ class AnalysisControlWindow:
         
         self.viewer.update_display()
 
-    def _on_polygon_select(self, event):
+    def _on_polygon_select(self, event) -> None:
+        """
+        Handle polygon selection changes from the dropdown.
+        
+        Updates the viewer's selected polygon based on user selection and triggers
+        display updates to highlight the chosen polygon. Validates the selection
+        and maintains consistency between the GUI and viewer state.
+        
+        Args:
+            event: The tkinter selection event from the polygon dropdown.
+                  Contains information about the ComboboxSelected event.
+        
+        Returns:
+            None: Updates viewer state as side effect, no return value.
+            
+        Examples:
+            >>> # User selects "Polygon 2" from dropdown
+            >>> event = type('Event', (), {})()  # Mock event
+            >>> control_window._on_polygon_select(event)
+            >>> print(viewer.mouse.selected_polygon)  # 1 (0-based index)
+            
+        Performance:
+            Time Complexity: O(1) - Simple selection updates and validation.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         selection = self.polygon_var.get()
         self.polygon_selection = 0 if selection == "All Polygons" else int(selection.split()[-1])
         
@@ -502,7 +982,31 @@ class AnalysisControlWindow:
         
         self.viewer.update_display()
 
-    def _show_histogram(self):
+    def _show_histogram(self) -> None:
+        """
+        Display histogram analysis for the selected region or full image.
+        
+        Creates and displays a histogram plot based on the current selection
+        (ROI, polygon, or full image). Preserves window state during plot
+        creation and provides visual feedback through button highlighting.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Creates histogram plot as side effect, no return value.
+            
+        Examples:
+            >>> # Select a ROI first
+            >>> viewer.mouse.draw_rects.append((10, 10, 100, 100))
+            >>> control_window.roi_selection = 1
+            >>> control_window._show_histogram()
+            >>> # Histogram plot window appears showing ROI 1 analysis
+            
+        Performance:
+            Time Complexity: O(n*m) where n*m is the pixel count in selected region.
+            Space Complexity: O(k) where k is the number of histogram bins (typically 256).
+        """
         # Set as active button in analysis section
         self._set_active_button('analysis', 'histogram')
         
@@ -533,8 +1037,36 @@ class AnalysisControlWindow:
             # Reduced delay since we're now using proper threading
             self.root.after(50, lambda: self._restore_window_state(current_focus, current_geometry, current_title))
 
-    def _restore_window_state(self, focus_widget, geometry, title):
-        """Restore window state after matplotlib plot creation."""
+    def _restore_window_state(self, focus_widget, geometry: str, title: str) -> None:
+        """
+        Restore window state after matplotlib plot creation.
+        
+        Restores the control window's title, geometry, and focus after creating
+        matplotlib plots, which can interfere with window management. Also refreshes
+        OpenCV window titles to maintain visibility.
+        
+        Args:
+            focus_widget: The widget that previously had focus, or None.
+                         Should have focus_set() method if not None.
+            geometry: The window geometry string to restore.
+                     Format: "widthxheight+x+y" (e.g., "420x650+100+100").
+            title: The window title to restore.
+                  Falls back to "Analysis Controls" if empty.
+        
+        Returns:
+            None: Restores window state as side effect, no return value.
+            
+        Examples:
+            >>> focus_widget = some_button_widget
+            >>> geometry = "420x650+100+100"
+            >>> title = "Analysis Controls"
+            >>> control_window._restore_window_state(focus_widget, geometry, title)
+            >>> # Window state restored to pre-plot creation state
+            
+        Performance:
+            Time Complexity: O(1) - Fixed window state restoration operations.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         try:
             # Restore window title (most important for user visibility)
             if self.root and self.root.winfo_exists():
@@ -564,7 +1096,32 @@ class AnalysisControlWindow:
         except Exception as e:
             print(f"Error restoring window state: {e}")
 
-    def _show_profiles(self):
+    def _show_profiles(self) -> None:
+        """
+        Display pixel profile plots for the selected lines.
+        
+        Creates and displays pixel intensity profile plots for either all drawn
+        lines or a specific selected line. Each profile shows pixel values along
+        the line path, useful for analyzing intensity variations.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Creates profile plots as side effect, no return value.
+            
+        Examples:
+            >>> # Draw some lines first
+            >>> viewer.mouse.draw_lines.append((0, 0, 100, 100))
+            >>> viewer.mouse.draw_lines.append((50, 0, 50, 100))
+            >>> control_window.line_selection = 0  # All lines
+            >>> control_window._show_profiles()
+            >>> # Profile plot windows appear for all lines
+            
+        Performance:
+            Time Complexity: O(n*m) where n is number of lines, m is pixels per line.
+            Space Complexity: O(m) for storing profile data per line.
+        """
         # Set as active button in analysis section
         self._set_active_button('analysis', 'profiles')
         
@@ -591,29 +1148,144 @@ class AnalysisControlWindow:
             # Reduced delay since we're now using proper threading
             self.root.after(50, lambda: self._restore_window_state(current_focus, current_geometry, current_title))
 
-    def _toggle_line_mode(self):
+    def _toggle_line_mode(self) -> None:
+        """
+        Toggle line drawing mode on/off.
+        
+        Switches the viewer between line drawing mode and normal mode.
+        When enabled, clicking on the image creates line endpoints.
+        Automatically disables polygon mode to prevent conflicts.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Updates drawing mode state as side effect, no return value.
+            
+        Examples:
+            >>> control_window._toggle_line_mode()
+            >>> print(viewer.mouse.is_line_mode)  # True (if was False)
+            >>> print(viewer.mouse.is_polygon_mode)  # False (disabled)
+            
+        Performance:
+            Time Complexity: O(1) - Simple boolean operations and button updates.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         self.viewer.mouse.is_line_mode = not self.viewer.mouse.is_line_mode
         self.viewer.mouse.is_polygon_mode = False
         self._update_quick_access_buttons()
 
-    def _toggle_polygon_mode(self):
+    def _toggle_polygon_mode(self) -> None:
+        """
+        Toggle polygon drawing mode on/off.
+        
+        Switches the viewer between polygon drawing mode and normal mode.
+        When enabled, clicking on the image adds polygon vertices.
+        Automatically disables line mode to prevent conflicts.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Updates drawing mode state as side effect, no return value.
+            
+        Examples:
+            >>> control_window._toggle_polygon_mode()
+            >>> print(viewer.mouse.is_polygon_mode)  # True (if was False)
+            >>> print(viewer.mouse.is_line_mode)  # False (disabled)
+            
+        Performance:
+            Time Complexity: O(1) - Simple boolean operations and button updates.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         self.viewer.mouse.is_polygon_mode = not self.viewer.mouse.is_polygon_mode
         self.viewer.mouse.is_line_mode = False
         self._update_quick_access_buttons()
 
-    def _toggle_rectangle_mode(self):
+    def _toggle_rectangle_mode(self) -> None:
+        """
+        Enable rectangle (ROI) drawing mode.
+        
+        Switches the viewer to rectangle drawing mode by disabling other
+        drawing modes. Rectangle mode is the default state when no other
+        drawing modes are active.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Updates drawing mode state as side effect, no return value.
+            
+        Examples:
+            >>> control_window._toggle_rectangle_mode()
+            >>> print(viewer.mouse.is_line_mode)  # False
+            >>> print(viewer.mouse.is_polygon_mode)  # False
+            
+        Performance:
+            Time Complexity: O(1) - Simple boolean operations and button updates.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         self.viewer.mouse.is_line_mode = False
         self.viewer.mouse.is_polygon_mode = False
         self._update_quick_access_buttons()
 
-    def _undo_last_point(self):
+    def _undo_last_point(self) -> None:
+        """
+        Undo the last point added to the current polygon.
+        
+        Removes the most recently added vertex from the polygon being drawn.
+        Only operates when in polygon drawing mode and a polygon is currently
+        being constructed.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Modifies polygon state as side effect, no return value.
+            
+        Examples:
+            >>> # Start drawing a polygon and add some points
+            >>> viewer.mouse.is_polygon_mode = True
+            >>> viewer.mouse.current_polygon = [(10, 10), (20, 20), (30, 10)]
+            >>> control_window._undo_last_point()
+            >>> print(viewer.mouse.current_polygon)  # [(10, 10), (20, 20)]
+            
+        Performance:
+            Time Complexity: O(1) - Simple list pop operation.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         # Set as active button in drawing management section
         self._set_active_button('drawing_management', 'undo')
         
         if self.viewer.mouse.is_polygon_mode and self.viewer.mouse.current_polygon:
             self.viewer.mouse.undo_last_point()
 
-    def _clear_last_rectangle(self):
+    def _clear_last_rectangle(self) -> None:
+        """
+        Remove the most recently drawn rectangle/ROI.
+        
+        Deletes the last rectangle from the drawing list and updates the
+        selection state if the removed rectangle was selected. Refreshes
+        the selector dropdowns and display.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Modifies rectangle list as side effect, no return value.
+            
+        Examples:
+            >>> # Draw some rectangles first
+            >>> viewer.mouse.draw_rects = [(10, 10, 50, 50), (20, 20, 60, 60)]
+            >>> viewer.mouse.selected_roi = 1  # Select last rectangle
+            >>> control_window._clear_last_rectangle()
+            >>> print(len(viewer.mouse.draw_rects))  # 1
+            >>> print(viewer.mouse.selected_roi)  # None (was cleared)
+            
+        Performance:
+            Time Complexity: O(n) where n is number of UI elements to update.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         # Set as active button in drawing management section
         self._set_active_button('drawing_management', 'clear_rect')
         
@@ -625,7 +1297,33 @@ class AnalysisControlWindow:
             self.update_selectors()
             self.viewer.update_display()
 
-    def _clear_last_line(self):
+    def _clear_last_line(self) -> None:
+        """
+        Remove the most recently drawn line.
+        
+        Deletes the last line from the drawing list and updates the selection
+        state if the removed line was selected. Clears any current line being
+        drawn and refreshes the interface.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Modifies line list as side effect, no return value.
+            
+        Examples:
+            >>> # Draw some lines first
+            >>> viewer.mouse.draw_lines = [(0, 0, 100, 100), (50, 50, 150, 150)]
+            >>> viewer.mouse.selected_line = 1  # Select last line
+            >>> control_window._clear_last_line()
+            >>> print(len(viewer.mouse.draw_lines))  # 1
+            >>> print(viewer.mouse.selected_line)  # None (was cleared)
+            >>> print(viewer.mouse.current_line)  # None (cleared)
+            
+        Performance:
+            Time Complexity: O(n) where n is number of UI elements to update.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         # Set as active button in drawing management section
         self._set_active_button('drawing_management', 'clear_line')
         
@@ -638,7 +1336,32 @@ class AnalysisControlWindow:
             self.viewer.update_display()
         self.viewer.mouse.current_line = None
 
-    def _clear_last_polygon(self):
+    def _clear_last_polygon(self) -> None:
+        """
+        Remove the most recently drawn polygon.
+        
+        Deletes the last polygon from the drawing list and updates the
+        selection state if the removed polygon was selected. Refreshes
+        the selector dropdowns and display.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Modifies polygon list as side effect, no return value.
+            
+        Examples:
+            >>> # Draw some polygons first
+            >>> viewer.mouse.draw_polygons = [[(10, 10), (20, 10), (15, 20)], [(30, 30), (40, 30), (35, 40)]]
+            >>> viewer.mouse.selected_polygon = 1  # Select last polygon
+            >>> control_window._clear_last_polygon()
+            >>> print(len(viewer.mouse.draw_polygons))  # 1
+            >>> print(viewer.mouse.selected_polygon)  # None (was cleared)
+            
+        Performance:
+            Time Complexity: O(n) where n is number of UI elements to update.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         # Set as active button in drawing management section
         self._set_active_button('drawing_management', 'clear_polygon')
         
@@ -650,7 +1373,34 @@ class AnalysisControlWindow:
             self.update_selectors()
             self.viewer.update_display()
 
-    def _clear_all(self):
+    def _clear_all(self) -> None:
+        """
+        Clear all drawn objects (rectangles, lines, polygons).
+        
+        Removes all drawing objects from the viewer and resets all selection
+        states. This is a comprehensive cleanup operation that returns the
+        drawing state to initial conditions.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Clears all drawing data as side effect, no return value.
+            
+        Examples:
+            >>> # Draw various objects first
+            >>> viewer.mouse.draw_rects = [(10, 10, 50, 50)]
+            >>> viewer.mouse.draw_lines = [(0, 0, 100, 100)]
+            >>> viewer.mouse.draw_polygons = [[(10, 10), (20, 10), (15, 20)]]
+            >>> control_window._clear_all()
+            >>> print(len(viewer.mouse.draw_rects))  # 0
+            >>> print(len(viewer.mouse.draw_lines))  # 0
+            >>> print(len(viewer.mouse.draw_polygons))  # 0
+            
+        Performance:
+            Time Complexity: O(n) where n is total number of UI elements to update.
+            Space Complexity: O(1) - Memory deallocation for cleared objects.
+        """
         # Set as active button in drawing management section
         self._set_active_button('drawing_management', 'clear_all')
         
@@ -663,43 +1413,77 @@ class AnalysisControlWindow:
         self.update_selectors()
         self.viewer.update_display()
 
-    def _close_plots(self):
+    def _close_plots(self) -> None:
+        """
+        Close all open matplotlib plot windows.
+        
+        Closes all analysis plots (histograms, profiles) that have been
+        created during the current session. Provides a clean way to manage
+        plot window clutter.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Closes plot windows as side effect, no return value.
+            
+        Examples:
+            >>> # After creating some plots
+            >>> control_window._show_histogram()
+            >>> control_window._show_profiles()
+            >>> control_window._close_plots()
+            >>> # All matplotlib windows now closed
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of open plot windows.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         # Set as active button in export_plots section
         self._set_active_button('export_plots', 'close_plots')
         
-        print("📋 Close All Plots button clicked")
         if hasattr(self.viewer, 'analyzer') and self.viewer.analyzer:
-            print("   → Calling analyzer.close_all_plots()")
             self.viewer.analyzer.close_all_plots()
-            print("   → close_all_plots() completed")
-        else:
-            print("   → Error: No analyzer found on viewer")
 
         
-    def _export_analysis_data(self):
+    def _export_analysis_data(self) -> None:
+        """
+        Open the export dialog for analysis data.
+        
+        Launches the enhanced export dialog that allows users to export
+        histogram, profile, or polygon data in various formats (JSON, CSV, PNG).
+        Falls back to a simple export dialog if the enhanced version is unavailable.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Opens export dialog as side effect, no return value.
+            
+        Examples:
+            >>> # Ensure image is loaded first
+            >>> viewer._internal_images = [(image_array, "test_image")]
+            >>> control_window._export_analysis_data()
+            >>> # Export dialog window opens with format options
+            
+        Performance:
+            Time Complexity: O(1) - Dialog creation and display operations.
+            Space Complexity: O(1) - Export dialog widget creation.
+            
+        Raises:
+            Exception: If export dialog creation fails or image data is unavailable.
+        """
         # Set as active button in export_plots section
         self._set_active_button('export_plots', 'export_data')
         
-        print("📊 Export Analysis Data button clicked")
-        
         if not self.viewer._internal_images:
-            print("   → Error: No images available for analysis")
             messagebox.showinfo("Export Analysis", "No image available for analysis.")
             return
-        
-        print(f"   → Found {len(self.viewer._internal_images)} images available for export")
             
         current_idx = self.viewer.trackbar.parameters.get('show', 0)
         image, title = self.viewer._internal_images[current_idx]
         
-        print(f"   → Current image: {title}, Index: {current_idx}")
-        print(f"   → Image shape: {image.shape if image is not None else 'None'}")
-        
         try:
-            print("   → Creating enhanced export dialog...")
             export_dialog = EnhancedExportDialog(self.root, self.theme_manager)
-            
-            print("   → Showing export dialog...")
             export_dialog.show(
                 filename_prefix=title.replace(' ', '_'),
                 on_export=lambda export_type, export_format, full_path, data_source: self._handle_export(
@@ -707,32 +1491,53 @@ class AnalysisControlWindow:
                 ),
                 viewer=self.viewer
             )
-            print("   → Export dialog displayed successfully")
         except Exception as e:
-            print(f"   → Error creating/showing export dialog: {e}")
             messagebox.showerror("Export Error", f"Failed to open export dialog: {str(e)}")
         
-    def _handle_export(self, export_type, export_format, full_path, image, title, data_source):
-        print(f"📁 _handle_export called:")
-        print(f"   → Export type: {export_type}")
-        print(f"   → Export format: {export_format}")
-        print(f"   → Full path: {full_path}")
-        print(f"   → Data source: {data_source}")
-        print(f"   → Image shape: {image.shape if image is not None else 'None'}")
+    def _handle_export(self, export_type: str, export_format: str, full_path: str, 
+                      image, title: str, data_source: str) -> None:
+        """
+        Handle the actual export operation based on user selections.
         
+        Processes export requests from the export dialog, handling different
+        data types, formats, and sources. Supports both data file exports
+        (JSON, CSV) and image exports (PNG) for plots.
+        
+        Args:
+            export_type: Type of data to export ('histogram', 'profile', 'polygon').
+            export_format: Output format ('json', 'csv', 'image').
+            full_path: Complete file path for the export output.
+            image: The image data to analyze for export. NumPy array format.
+            title: Display title for the analysis. Used in plot titles.
+            data_source: Source specification (e.g., 'full_image', 'roi_0', 'line_1').
+        
+        Returns:
+            None: Performs export operations as side effect, no return value.
+            
+        Examples:
+            >>> # Export histogram data as JSON
+            >>> control_window._handle_export(
+            ...     "histogram", "json", "/path/output.json", 
+            ...     image_array, "Test Image", "full_image"
+            ... )
+            >>> # Creates JSON file with histogram data
+            
+        Performance:
+            Time Complexity: O(n*m) where n*m is pixels in analysis region.
+            Space Complexity: O(k) where k is size of exported data structure.
+            
+        Raises:
+            Exception: If export operation fails due to invalid data or I/O errors.
+        """
         # Handle image export
         if export_format == "image":
-            print("   → Processing image export...")
             if export_type == "histogram":
-                print("   → Creating histogram plot for image export...")
                 try:
                     # Parse data source to determine what to plot
                     if data_source == "full_image":
-                        print("   → Creating histogram plot for full image")
                         self.viewer.analyzer.create_histogram_plot(image, title=f"{title} - Full Image")
                     elif data_source.startswith("roi_"):
                         roi_index = int(data_source.split("_")[1])
-                        print(f"   → Creating histogram plot for ROI {roi_index + 1}")
                         if roi_index < len(self.viewer.mouse.draw_rects):
                             roi = self.viewer.mouse.draw_rects[roi_index]
                             self.viewer.analyzer.create_histogram_plot(image, roi=roi, title=f"{title} - ROI {roi_index + 1}")
@@ -741,7 +1546,6 @@ class AnalysisControlWindow:
                             return
                     elif data_source.startswith("polygon_"):
                         poly_index = int(data_source.split("_")[1])
-                        print(f"   → Creating histogram plot for Polygon {poly_index + 1}")
                         if poly_index < len(self.viewer.mouse.draw_polygons):
                             polygon = self.viewer.mouse.draw_polygons[poly_index]
                             self.viewer.analyzer.create_histogram_plot(image, polygon=polygon, title=f"{title} - Polygon {poly_index + 1}")
@@ -759,20 +1563,16 @@ class AnalysisControlWindow:
                     else:
                         messagebox.showerror("Export Failed", "Failed to save histogram plot image")
                 except Exception as e:
-                    print(f"   → Error creating histogram plot: {e}")
                     messagebox.showerror("Export Error", f"Failed to create histogram plot: {str(e)}")
             elif export_type == "profile":
-                print("   → Creating profile plot for image export...")
                 try:
                     # Parse data source to determine what to plot
                     if data_source == "all_lines":
-                        print("   → Creating plots for all lines")
                         # For multiple lines, create individual plots and save the last one
                         for i, line in enumerate(self.viewer.mouse.draw_lines):
                             self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {i+1}")
                     elif data_source.startswith("line_"):
                         line_index = int(data_source.split("_")[1])
-                        print(f"   → Creating profile plot for Line {line_index + 1}")
                         if line_index < len(self.viewer.mouse.draw_lines):
                             line = self.viewer.mouse.draw_lines[line_index]
                             self.viewer.analyzer.create_pixel_profile_plot(image, line, f"{title} - Line {line_index + 1}")
@@ -790,7 +1590,6 @@ class AnalysisControlWindow:
                     else:
                         messagebox.showerror("Export Failed", "Failed to save profile plot image")
                 except Exception as e:
-                    print(f"   → Error creating profile plot: {e}")
                     messagebox.showerror("Export Error", f"Failed to create profile plot: {str(e)}")
             else:
                 messagebox.showerror("Export Error", f"Image export not supported for {export_type}")
@@ -798,14 +1597,11 @@ class AnalysisControlWindow:
         
         try:
             if export_type == "histogram":
-                print("   → Processing histogram data export...")
                 # Parse data source to determine what to export
                 if data_source == "full_image":
-                    print("   → Calculating histogram for full image")
                     histogram_data = self.viewer.analyzer.calculate_histogram(image)
                 elif data_source.startswith("roi_"):
                     roi_index = int(data_source.split("_")[1])
-                    print(f"   → Calculating histogram for ROI {roi_index + 1}")
                     if roi_index < len(self.viewer.mouse.draw_rects):
                         roi = self.viewer.mouse.draw_rects[roi_index]
                         histogram_data = self.viewer.analyzer.calculate_histogram(image, roi=roi)
@@ -814,7 +1610,6 @@ class AnalysisControlWindow:
                         return
                 elif data_source.startswith("polygon_"):
                     poly_index = int(data_source.split("_")[1])
-                    print(f"   → Calculating histogram for Polygon {poly_index + 1}")
                     if poly_index < len(self.viewer.mouse.draw_polygons):
                         polygon = self.viewer.mouse.draw_polygons[poly_index]
                         histogram_data = self.viewer.analyzer.calculate_histogram(image, polygon=polygon)
@@ -825,30 +1620,22 @@ class AnalysisControlWindow:
                     messagebox.showerror("Export Error", f"Unknown data source: {data_source}")
                     return
                 
-                print(f"   → Histogram data keys: {list(histogram_data.keys()) if histogram_data else 'None'}")
-                print(f"   → Exporting histogram data...")
                 success = self.viewer.analyzer.export_analysis_data('histogram', histogram_data, export_format, full_path)
-                print(f"   → Export success: {success}")
                 if success:
                     messagebox.showinfo("Export Complete", f"Histogram data exported to {full_path}")
                 else:
                     messagebox.showerror("Export Failed", "Failed to export histogram data")
             
             elif export_type == "profile":
-                print("   → Processing profile data export...")
                 # Parse data source to determine what to export
                 if data_source == "all_lines":
-                    print("   → Exporting all line profiles...")
                     base_path = os.path.splitext(full_path)[0]
                     exported_count = 0
                     
                     for i, line in enumerate(self.viewer.mouse.draw_lines):
                         line_path = f"{base_path}_line{i+1}.{export_format}"
-                        print(f"   → Processing line {i+1}: {line}")
                         profile_data = self.viewer.analyzer.calculate_pixel_profile(image, line)
-                        print(f"   → Profile data keys: {list(profile_data.keys()) if profile_data else 'None'}")
                         success = self.viewer.analyzer.export_analysis_data('profile', profile_data, export_format, line_path)
-                        print(f"   → Export success for line {i+1}: {success}")
                         if success:
                             exported_count += 1
                             
@@ -858,14 +1645,10 @@ class AnalysisControlWindow:
                         messagebox.showerror("Export Failed", "Failed to export any line profiles")
                 elif data_source.startswith("line_"):
                     line_index = int(data_source.split("_")[1])
-                    print(f"   → Exporting Line {line_index + 1} profile")
                     if line_index < len(self.viewer.mouse.draw_lines):
                         line = self.viewer.mouse.draw_lines[line_index]
-                        print(f"   → Processing line {line_index}: {line}")
                         profile_data = self.viewer.analyzer.calculate_pixel_profile(image, line)
-                        print(f"   → Profile data keys: {list(profile_data.keys()) if profile_data else 'None'}")
                         success = self.viewer.analyzer.export_analysis_data('profile', profile_data, export_format, full_path)
-                        print(f"   → Export success: {success}")
                         if success:
                             messagebox.showinfo("Export Complete", f"Profile data exported to {full_path}")
                         else:
@@ -883,20 +1666,87 @@ class AnalysisControlWindow:
                         
         except Exception as e:
             messagebox.showerror("Export Error", f"Error during export: {str(e)}")
-            print(f"Export error: {str(e)}")
 
-    def _open_thresholding_window(self):
+    def _open_thresholding_window(self) -> None:
+        """
+        Open the thresholding color space selection window.
+        
+        Launches the thresholding manager's interface for image segmentation
+        operations. The thresholding window provides controls for adjusting
+        threshold parameters across different color spaces.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Opens thresholding window as side effect, no return value.
+            
+        Examples:
+            >>> control_window._open_thresholding_window()
+            >>> # Thresholding color space selection window appears
+            >>> # User can adjust HSV, RGB, or other color space thresholds
+            
+        Performance:
+            Time Complexity: O(1) - Simple window creation and display.
+            Space Complexity: O(1) - Thresholding window widget creation.
+        """
         # Set as active button in analysis section
         self._set_active_button('analysis', 'thresholding')
         
         self.thresholding_manager.open_colorspace_selection_window()
         
 
-    def _on_closing(self):
+    def _on_closing(self) -> None:
+        """
+        Handle window closing event.
+        
+        Performs cleanup operations when the analysis control window is closed,
+        including closing any thresholding windows and destroying the main window.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Performs cleanup as side effect, no return value.
+            
+        Examples:
+            >>> # This method is called automatically when user closes window
+            >>> # Manual call example:
+            >>> control_window._on_closing()
+            >>> # All child windows closed and main window destroyed
+            
+        Performance:
+            Time Complexity: O(1) - Fixed cleanup operations.
+            Space Complexity: O(1) - Memory deallocation during cleanup.
+        """
         self.thresholding_manager.cleanup_windows()
         self.destroy_window()
     
-    def destroy_window(self):
+    def destroy_window(self) -> None:
+        """
+        Destroy the analysis control window and clean up resources.
+        
+        Performs comprehensive cleanup of the window and its components,
+        including unbinding event handlers and clearing object references
+        to prevent memory leaks.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Destroys window and cleans up as side effect, no return value.
+            
+        Examples:
+            >>> control_window = AnalysisControlWindow(viewer)
+            >>> control_window.create_window()
+            >>> print(control_window.window_created)  # True
+            >>> control_window.destroy_window()
+            >>> print(control_window.window_created)  # False
+            
+        Performance:
+            Time Complexity: O(1) - Fixed cleanup operations.
+            Space Complexity: O(1) - Memory deallocation for window components.
+        """
         if self.window_created and self.root:
             try: 
                 # Clean up mouse wheel bindings
@@ -912,8 +1762,29 @@ class AnalysisControlWindow:
             self.scrollbar = None
             self.canvas_frame = None
     
-    def _setup_keyboard_shortcuts(self):
-        """Setup keyboard shortcuts for quick access."""
+    def _setup_keyboard_shortcuts(self) -> None:
+        """
+        Setup keyboard shortcuts for quick access to common operations.
+        
+        Binds keyboard events to the main window for rapid access to drawing
+        modes and analysis functions. Provides professional workflow efficiency
+        through standard keyboard shortcuts.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Sets up keyboard bindings as side effect, no return value.
+            
+        Examples:
+            >>> control_window._setup_keyboard_shortcuts()
+            >>> # Now pressing 'H' key will show histogram
+            >>> # Pressing 'L' key will toggle line drawing mode
+            
+        Performance:
+            Time Complexity: O(1) - Fixed number of event binding operations.
+            Space Complexity: O(1) - Function closure creation for event handler.
+        """
         def on_key_press(event):
             try:
                 key = event.keysym.lower()
@@ -941,7 +1812,30 @@ class AnalysisControlWindow:
         self.root.bind('<KeyPress>', on_key_press)
         self.root.focus_set()  # Make sure the window can receive key events
 
-    def _create_quick_access_section(self, parent_frame):
+    def _create_quick_access_section(self, parent_frame) -> None:
+        """
+        Create the quick access section with drawing mode toggle buttons.
+        
+        Builds the drawing tools section containing buttons for switching between
+        rectangle, line, and polygon drawing modes. Includes visual state indicators
+        and keyboard shortcut setup.
+        
+        Args:
+            parent_frame: The parent frame to contain the quick access controls.
+                         Must be a valid tkinter container widget.
+        
+        Returns:
+            None: Creates quick access UI as side effect, no return value.
+            
+        Examples:
+            >>> control_window._create_quick_access_section(main_frame)
+            >>> # Creates rectangle, line, and polygon mode toggle buttons
+            >>> # Sets up keyboard shortcuts (R, L, P keys)
+            
+        Performance:
+            Time Complexity: O(1) - Fixed number of button creation operations.
+            Space Complexity: O(1) - Creates fixed number of button widgets.
+        """
         quick_frame = self._create_section_frame(parent_frame, "Drawing Tools")
         
         drawing_frame = ttk.Frame(quick_frame, style=self.theme_manager.get_frame_style())
@@ -983,8 +1877,29 @@ class AnalysisControlWindow:
         # Add keyboard bindings
         self._setup_keyboard_shortcuts()
 
-    def _update_quick_access_buttons(self):
-        """Update the state of quick access buttons based on active modes."""
+    def _update_quick_access_buttons(self) -> None:
+        """
+        Update the visual state of quick access drawing mode buttons.
+        
+        Refreshes button styling to reflect the current drawing mode state.
+        Active modes are highlighted with the theme's active button style,
+        while inactive modes use the default styling.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Updates button styling as side effect, no return value.
+            
+        Examples:
+            >>> viewer.mouse.is_line_mode = True
+            >>> control_window._update_quick_access_buttons()
+            >>> # Line mode button now highlighted, others normal
+            
+        Performance:
+            Time Complexity: O(1) - Fixed button style update operations.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         if not self.window_created or not self.quick_access_buttons:
             return
             
@@ -1009,8 +1924,26 @@ class AnalysisControlWindow:
         except Exception as e:
             print(f"Error updating quick access buttons: {e}")
 
-    def _set_active_button(self, section, button_key):
-        """Set a button as active and update visual states for the section."""
+    def _set_active_button(self, section: str, button_key: str) -> None:
+        """
+        Set a button as active and update visual states for the section.
+        
+        Manages button state highlighting within organized sections to provide
+        visual feedback about the most recent action. Only one button per
+        section can be active at a time.
+        
+        Args:
+            section: The section name ('analysis', 'drawing_management', 'export_plots').
+            button_key: The specific button identifier within the section.
+        
+        Side Effects:
+            - Clears previous active button styling in the section
+            - Applies active styling to the new button
+            - Updates internal active_states tracking
+        
+        Performance:
+            Time Complexity: O(1) - Direct dictionary lookups and single button updates.
+        """
         if not self.action_buttons or not self.window_created:
             return
             
@@ -1056,13 +1989,62 @@ class AnalysisControlWindow:
             if self.viewer:
                 print(f"Button state error: {e}")
                 
-    def _rebind_canvas_events(self):
-        """Re-bind canvas events after button state changes."""
+    def _rebind_canvas_events(self) -> None:
+        """
+        Re-bind canvas events after button state changes.
+        
+        This method is no longer needed since canvas events are not unbound
+        during button state changes. Maintained for backward compatibility.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: This method performs no operations and returns nothing.
+            
+        Examples:
+            >>> # This method is deprecated but can be called safely
+            >>> control_window._rebind_canvas_events()
+            >>> # No effect - method does nothing
+            
+        Performance:
+            Time Complexity: O(1) - No operations performed.
+            Space Complexity: O(1) - No memory allocation.
+            
+        Deprecated:
+            This method is deprecated and performs no operations.
+        """
         # This method is no longer needed since we're not unbinding events
         pass
 
-    def _provide_button_feedback(self, button):
-        """Provide visual feedback when action buttons are clicked."""
+    def _provide_button_feedback(self, button) -> None:
+        """
+        Provide visual feedback when action buttons are clicked.
+        
+        Creates temporary visual feedback by briefly changing the button style
+        to the active state, then returning to the original style. Provides
+        user confirmation that the button press was registered.
+        
+        Args:
+            button: The tkinter button widget to provide feedback for.
+                   Must be a valid tkinter button with cget() and config() methods.
+        
+        Returns:
+            None: Modifies button styling as side effect, no return value.
+            
+        Examples:
+            >>> # Create a button and provide feedback
+            >>> button = ttk.Button(parent, text="Test")
+            >>> control_window._provide_button_feedback(button)
+            >>> # Button briefly changes to active style, then returns to normal
+            >>> 
+            >>> # Safe to call with None button
+            >>> control_window._provide_button_feedback(None)  # No effect
+            
+        Performance:
+            Time Complexity: O(1) - Single button style changes and timer setup.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         if not button:
             return
             

@@ -1,3 +1,61 @@
+"""
+Thresholding window module for the Parameter image viewer application.
+
+This module provides comprehensive image thresholding functionality with support
+for multiple color spaces, thresholding methods, and both unified and legacy
+interfaces. It integrates OpenCV thresholding operations with tkinter GUI controls
+for interactive parameter adjustment and real-time preview.
+
+Main Classes:
+    - ThresholdingWindow: Complete thresholding interface supporting multiple
+      color spaces, threshold methods, and parameter controls
+    - ThresholdWindowManager: Custom window manager for thresholding operations
+
+Features:
+    - Multi-color space support (BGR, HSV, HLS, Lab, Luv, YCrCb, XYZ, Grayscale)
+    - Multiple thresholding methods (Binary, Otsu, Triangle, Adaptive, Range)
+    - Unified interface with integrated color space selection
+    - Legacy simple OpenCV window interface
+    - Real-time parameter adjustment with trackbars
+    - Theme-aware GUI styling
+    - Configuration saving and loading
+    - Preset management system
+
+Thresholding Methods:
+    - Binary: Simple binary thresholding with single threshold value
+    - Otsu: Automatic threshold selection using Otsu's method
+    - Triangle: Automatic threshold using triangle algorithm
+    - Adaptive: Adaptive thresholding for varying illumination
+    - Range: Multi-channel range-based thresholding
+
+Color Space Support:
+    - BGR: Blue-Green-Red (OpenCV default)
+    - HSV: Hue-Saturation-Value (good for color-based segmentation)
+    - HLS: Hue-Lightness-Saturation (alternative color representation)
+    - Lab: L*a*b* (perceptually uniform color space)
+    - Luv: L*u*v* (CIE color space)
+    - YCrCb: Luma-Chroma (used in video compression)
+    - XYZ: CIE XYZ (device-independent color space)
+    - Grayscale: Single channel intensity
+
+Dependencies:
+    - tkinter: GUI framework
+    - cv2: OpenCV for image processing
+    - numpy: Array operations
+    - ThresholdProcessor: Core thresholding operations
+    - TrackbarManager: Real-time parameter controls
+    - ViewerConfig: Configuration management
+    - ThemeManager: UI styling
+
+Usage:
+    # Unified interface
+    threshold_window = ThresholdingWindow(viewer, "HSV")
+    threshold_window.create_unified_window()
+    
+    # Simple OpenCV interface
+    threshold_window.create_simple_threshold_viewer()
+"""
+
 import tkinter as tk
 from tkinter import ttk, filedialog
 import cv2
@@ -9,7 +67,75 @@ from ..config.viewer_config import ViewerConfig
 from .theme_manager import ThemeManager
 
 class ThresholdingWindow:
-    def __init__(self, viewer, color_space=None):
+    """
+    Comprehensive image thresholding interface with multi-color space support.
+    
+    This class provides a complete thresholding solution with both unified GUI
+    interfaces and simple OpenCV window modes. It supports multiple color spaces,
+    various thresholding methods, real-time parameter adjustment, and configuration
+    persistence.
+    
+    The class can operate in two main modes:
+    1. Unified Window: Complete tkinter interface with color space selection,
+       method controls, and integrated parameter adjustment
+    2. Simple Viewer: OpenCV-only interface for lightweight thresholding
+    
+    Attributes:
+        viewer: Reference to the main ImageViewer instance.
+        color_space (str): Currently selected color space for thresholding.
+        root: Main tkinter window for the interface.
+        window_created (bool): Flag indicating if the window has been created.
+        theme_manager: ThemeManager instance for consistent styling.
+        threshold_method_var: tkinter variable for threshold method selection.
+        threshold_type_var: tkinter variable for binary threshold type.
+        adaptive_method_var: tkinter variable for adaptive method selection.
+        color_space_var: tkinter variable for color space selection.
+        method_trackbars (dict): Trackbar configurations for each method.
+        current_method (str): Currently active thresholding method.
+        threshold_viewer: Dedicated ImageViewer instance for threshold preview.
+        ranges (dict): Valid parameter ranges for each color space.
+        close_callback: Optional callback function for window closing.
+    
+    Examples:
+        >>> threshold_window = ThresholdingWindow(viewer, "HSV")
+        >>> threshold_window.create_unified_window()
+        # Creates unified interface with HSV color space
+        
+        >>> threshold_window.create_simple_threshold_viewer()
+        # Creates simple OpenCV window interface
+        
+        >>> threshold_window.update_threshold()
+        # Updates threshold processing with current parameters
+    """
+    def __init__(self, viewer, color_space: str = None) -> None:
+        """
+        Initialize the thresholding window with viewer and color space.
+        
+        Sets up the thresholding interface with the specified color space,
+        initializes UI variables, creates parameter ranges for all supported
+        color spaces, and prepares for threshold processing with theme support.
+        
+        Args:
+            viewer: The ImageViewer instance that provides the source images
+                   for thresholding operations. Must have loaded images and trackbar.
+            color_space (str, optional): The initial color space to use. Must be one of:
+                                       "BGR", "HSV", "HLS", "Lab", "Luv", "YCrCb", "XYZ", "Grayscale".
+                                       Defaults to "BGR" if not specified.
+        
+        Returns:
+            None: Constructor initializes instance, no return value.
+        
+        Examples:
+            >>> threshold_window = ThresholdingWindow(viewer, "HSV")
+            >>> # HSV thresholding window initialized
+            >>> threshold_window = ThresholdingWindow(viewer)
+            >>> # BGR thresholding window initialized (default)
+            >>> print(threshold_window.color_space)  # "BGR"
+            
+        Performance:
+            Time Complexity: O(1) - Fixed initialization with color space ranges.
+            Space Complexity: O(1) - Fixed memory for UI variables and ranges.
+        """
         self.viewer = viewer
         self.color_space = color_space or "BGR"  # Default to BGR if not specified
         self.root = None
@@ -52,7 +178,30 @@ class ThresholdingWindow:
             "Grayscale": {"Gray": (0, 255)}
         }
 
-    def create_window(self):
+    def create_window(self) -> None:
+        """
+        Create the legacy thresholding window with color space-specific controls.
+        
+        Creates a tkinter window with controls appropriate for the current color
+        space. For grayscale images, shows grayscale-specific thresholding methods.
+        For color images, shows color-based thresholding options. Legacy interface.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Creates window as side effect, no return value.
+        
+        Examples:
+            >>> threshold_window = ThresholdingWindow(viewer, "HSV")
+            >>> threshold_window.create_window()
+            >>> # Legacy thresholding window created with HSV-specific controls
+            >>> print(threshold_window.window_created)  # True
+            
+        Performance:
+            Time Complexity: O(1) - Fixed UI widget creation and setup.
+            Space Complexity: O(1) - Fixed memory for window components.
+        """
         if self.window_created:
             return
 
@@ -91,8 +240,32 @@ class ThresholdingWindow:
         # Create trackbars after UI is set up
         self.create_trackbars()
     
-    def create_unified_window(self):
-        """Create unified window with colorspace selection and thresholding parameters visible."""
+    def create_unified_window(self) -> None:
+        """
+        Create unified thresholding window with integrated color space selection.
+        
+        Creates a comprehensive thresholding interface that combines color space
+        selection with parameter controls in a single, dynamically-sized window.
+        The interface adapts its size based on the selected color space and method.
+        Modern interface with enhanced UX.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Creates window as side effect, no return value.
+        
+        Examples:
+            >>> threshold_window = ThresholdingWindow(viewer, "HSV")
+            >>> threshold_window.create_unified_window()
+            >>> # Unified thresholding window created with dynamic sizing
+            >>> # User can select color space from dropdown
+            >>> print(threshold_window.window_created)  # True
+            
+        Performance:
+            Time Complexity: O(1) - Fixed UI creation with dynamic content placeholder.
+            Space Complexity: O(1) - Fixed memory for unified window components.
+        """
         if self.window_created:
             return
 
@@ -141,8 +314,19 @@ class ThresholdingWindow:
         self.window_created = True
         self.root.protocol("WM_DELETE_WINDOW", self.destroy_window)
     
-    def _adjust_window_size(self):
-        """Adjust window size to fit content."""
+    def _adjust_window_size(self) -> None:
+        """
+        Dynamically adjust window size to fit current content.
+        
+        Calculates the required window size based on the current content and
+        adjusts the window geometry within reasonable bounds. Ensures the window
+        doesn't exceed screen dimensions or become too small for usability.
+        
+        Side Effects:
+            - Updates window geometry
+            - Applies minimum and maximum size constraints
+            - Considers screen dimensions for maximum height
+        """
         if not self.root:
             return
             
@@ -175,8 +359,19 @@ class ThresholdingWindow:
             print(f"Error adjusting window size: {e}")
 
     
-    def _create_colorspace_selection_unified(self):
-        """Create colorspace selection section for unified window."""
+    def _create_colorspace_selection_unified(self) -> None:
+        """
+        Create the color space selection section for the unified window.
+        
+        Creates a dropdown interface for selecting color spaces in the unified
+        thresholding window. The selection triggers dynamic updates to the
+        parameter controls and threshold viewer.
+        
+        Side Effects:
+            - Creates color space selection dropdown
+            - Sets up selection change callback
+            - Applies theme styling
+        """
         colorspace_frame = ttk.Frame(self.main_container, style=self.theme_manager.get_frame_style())
         colorspace_frame.pack(fill='x', padx=5, pady=5)
         
@@ -241,8 +436,25 @@ class ThresholdingWindow:
                                      style=self.theme_manager.get_label_style())
                 note_label.pack(pady=2)
 
-    def _on_colorspace_change_unified(self, event=None):
-        """Handle colorspace selection changes in unified window."""
+    def _on_colorspace_change_unified(self, event=None) -> None:
+        """
+        Handle color space selection changes in the unified window interface.
+        
+        Updates the unified thresholding interface when the user selects a different
+        color space, including updating descriptions, recreating the threshold viewer,
+        and rebuilding the parameter controls for the new color space.
+        
+        Args:
+            event: The tkinter event that triggered the change (optional).
+        
+        Side Effects:
+            - Updates color space description text
+            - Updates internal color_space attribute
+            - Clears existing control widgets
+            - Recreates threshold viewer for new color space
+            - Rebuilds thresholding controls
+            - Updates method selection styling
+        """
         new_colorspace = self.color_space_var.get()
         
         if not new_colorspace:
@@ -271,7 +483,19 @@ class ThresholdingWindow:
         # Adjust window size to fit content (with small delay)
         self.root.after(100, self._adjust_window_size)
         
-    def _create_or_update_threshold_viewer(self):
+    def _create_or_update_threshold_viewer(self) -> None:
+        """
+        Create or update the threshold viewer for the current color space.
+        
+        Creates a new threshold viewer if none exists, or updates the existing
+        viewer to work with the current color space. Ensures the viewer is
+        properly configured for the selected color space's characteristics.
+        
+        Side Effects:
+            - Creates threshold viewer if not present
+            - Updates viewer configuration for current color space
+            - Establishes trackbar manager reference
+        """
         """Create or update the threshold viewer for the current colorspace."""
         # Clean up existing threshold viewer if it exists
         if hasattr(self, 'threshold_viewer') and self.threshold_viewer:
@@ -287,7 +511,30 @@ class ThresholdingWindow:
         # Create trackbars for the current colorspace
         self.create_trackbars()
     
-    def _create_thresholding_controls_unified(self):
+    def _create_thresholding_controls_unified(self) -> None:
+        """
+        Create comprehensive thresholding controls in the unified window.
+        
+        Builds the complete set of thresholding controls appropriate for the
+        current color space, including method selection buttons, parameter
+        controls, and method-specific options.
+        
+        For grayscale images, creates controls for:
+        - Binary thresholding methods (Simple, Otsu, Triangle)
+        - Adaptive thresholding
+        - Threshold type selection
+        
+        For color images, creates controls for:
+        - Range-based thresholding
+        - Multi-channel parameter adjustment
+        
+        Side Effects:
+            - Creates method selection buttons
+            - Sets up parameter control interfaces
+            - Configures method-specific UI elements
+            - Establishes event callbacks
+            - Adjusts window size to fit content
+        """
         """Create thresholding controls in the unified window."""
         # Method selection frame
         method_frame = ttk.LabelFrame(self.controls_frame, text="Thresholding Method", 
@@ -392,7 +639,18 @@ class ThresholdingWindow:
         # Update status display
         self._update_status_display()
     
-    def _update_method_selection_style(self):
+    def _update_method_selection_style(self) -> None:
+        """
+        Update the visual styling of method selection buttons.
+        
+        Applies appropriate styling to method selection buttons to indicate
+        the currently selected method using theme-aware active and inactive
+        button styles.
+        
+        Side Effects:
+            - Updates button styling based on current method
+            - Applies theme-appropriate active/inactive styles
+        """
         """Update the visual style of method selection buttons."""
         if not hasattr(self, 'method_buttons'):
             return
@@ -416,7 +674,20 @@ class ThresholdingWindow:
                 checkbox.config(text="☐", foreground=default_fg)
                 text_label.config(foreground=default_fg)
     
-    def _on_method_change_unified(self):
+    def _on_method_change_unified(self) -> None:
+        """
+        Handle threshold method changes in the unified window interface.
+        
+        Updates the unified interface when the user selects a different
+        thresholding method, including updating UI elements and switching
+        trackbar configurations.
+        
+        Side Effects:
+            - Updates method selection styling
+            - Switches trackbars for selected method
+            - Updates method-specific UI elements
+            - Adjusts window size if needed
+        """
         """Handle threshold method changes in unified window."""
         if not self.threshold_method_var:
             return
@@ -430,15 +701,47 @@ class ThresholdingWindow:
         # Adjust window size for method-specific controls (with small delay)
         self.root.after(50, self._adjust_window_size)
     
-    def _on_threshold_type_change_unified(self, event=None):
+    def _on_threshold_type_change_unified(self, event=None) -> None:
+        """
+        Handle threshold type changes in the unified window interface.
+        
+        Updates the threshold type selection when changed via dropdown in
+        the unified interface.
+        
+        Args:
+            event: The tkinter event that triggered the change (optional).
+        """
         """Handle threshold type changes in unified window."""
         self._on_dropdown_threshold_type_change(event)
     
-    def _on_adaptive_method_change_unified(self, event=None):
+    def _on_adaptive_method_change_unified(self, event=None) -> None:
+        """
+        Handle adaptive method changes in the unified window interface.
+        
+        Updates the adaptive thresholding method selection when changed
+        via dropdown in the unified interface.
+        
+        Args:
+            event: The tkinter event that triggered the change (optional).
+        """
         """Handle adaptive method changes in unified window."""
         self._on_dropdown_adaptive_method_change(event)
     
-    def _update_ui_for_method_unified(self, method):
+    def _update_ui_for_method_unified(self, method: str) -> None:
+        """
+        Update UI elements for the selected method in the unified window.
+        
+        Adjusts the user interface to show or hide controls appropriate
+        for the selected thresholding method in the unified window interface.
+        
+        Args:
+            method: The selected thresholding method name.
+        
+        Side Effects:
+            - Shows/hides method-specific controls
+            - Updates dropdown options based on method
+            - Adjusts window size to fit content
+        """
         """Update UI elements for the selected method in unified window."""
         if not hasattr(self, 'adaptive_frame'):
             return
@@ -454,8 +757,31 @@ class ThresholdingWindow:
             if hasattr(self, 'threshold_type_combo'):
                 self.threshold_type_combo['values'] = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
 
-    def create_simple_threshold_viewer(self):
-        """Create only the OpenCV threshold viewer without tkinter UI."""
+    def create_simple_threshold_viewer(self) -> None:
+        """
+        Create a lightweight OpenCV-only thresholding interface without tkinter GUI.
+        
+        Creates a minimal thresholding interface using only OpenCV windows for
+        parameter adjustment and preview. This mode is useful for lightweight
+        thresholding operations without the full GUI overhead. Legacy compatibility mode.
+        
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Creates OpenCV windows as side effect, no return value.
+        
+        Examples:
+            >>> threshold_window = ThresholdingWindow(viewer, "HSV")
+            >>> threshold_window.create_simple_threshold_viewer()
+            >>> # OpenCV-only interface created with trackbars
+            >>> # No tkinter GUI components
+            >>> print(threshold_window.window_created)  # True
+            
+        Performance:
+            Time Complexity: O(1) - Lightweight OpenCV window and trackbar creation.
+            Space Complexity: O(1) - Minimal memory for OpenCV interface only.
+        """
         if self.window_created:
             return
 
@@ -470,8 +796,20 @@ class ThresholdingWindow:
         # Create trackbars for the selected colorspace
         self.create_trackbars()
         
-    def _create_colorspace_selection(self):
-        """Create colorspace selection section at the top of the window."""
+    def _create_colorspace_selection(self) -> None:
+        """
+        Create the color space selection section for the legacy thresholding window.
+        
+        Builds a labeled frame containing color space selection controls including
+        a dropdown for color space selection and informational text about the
+        current selection. This is used in the legacy window interface.
+        
+        Side Effects:
+            - Creates labeled frame for color space selection
+            - Creates dropdown with available color spaces
+            - Sets up selection change callback
+            - Adds informational text about current color space
+        """
         colorspace_frame = ttk.LabelFrame(self.root, text="Color Space Selection", style=self.theme_manager.get_frame_style())
         colorspace_frame.pack(padx=10, pady=5, fill="x")
         
@@ -529,7 +867,23 @@ class ThresholdingWindow:
                                      style=self.theme_manager.get_label_style())
                 note_label.pack(pady=2)
 
-    def _on_colorspace_change(self, event=None):
+    def _on_colorspace_change(self, event=None) -> None:
+        """
+        Handle color space selection changes in the legacy window interface.
+        
+        Updates the thresholding interface when the user selects a different
+        color space, including recreating the threshold viewer and method controls
+        to match the new color space requirements.
+        
+        Args:
+            event: The tkinter event that triggered the change (optional).
+        
+        Side Effects:
+            - Updates internal color_space attribute
+            - Recreates threshold viewer for new color space
+            - Recreates method controls appropriate for new color space
+            - Updates trackbar definitions
+        """
         """Handle colorspace selection changes."""
         new_colorspace = self.color_space_var.get()
         
@@ -553,7 +907,19 @@ class ThresholdingWindow:
             # Update the threshold processing
             self.update_threshold()
     
-    def _recreate_threshold_viewer(self):
+    def _recreate_threshold_viewer(self) -> None:
+        """
+        Recreate the threshold viewer for the newly selected color space.
+        
+        Destroys the existing threshold viewer and creates a new one configured
+        for the current color space. This ensures the viewer uses appropriate
+        processing and display settings for the selected color space.
+        
+        Side Effects:
+            - Destroys existing threshold_viewer if present
+            - Creates new threshold viewer with current configuration
+            - Updates trackbar_manager reference
+        """
         """Recreate the threshold viewer for the new colorspace."""
         if self.threshold_viewer:
             self.threshold_viewer.cleanup_viewer()
@@ -571,7 +937,18 @@ class ThresholdingWindow:
         self.threshold_viewer.setup_viewer(image_processor_func=self._threshold_processor)
         self.trackbar_manager = self.threshold_viewer.trackbar
     
-    def _recreate_method_controls(self):
+    def _recreate_method_controls(self) -> None:
+        """
+        Recreate method control sections for the newly selected color space.
+        
+        Rebuilds the method selection controls to match the capabilities of the
+        current color space. Grayscale images get grayscale-specific controls,
+        while color images get color-appropriate method options.
+        
+        Side Effects:
+            - Creates appropriate method controls for current color space
+            - Updates UI layout based on color space type
+        """
         """Recreate method controls for the new colorspace."""
         # Remove existing method controls (find all LabelFrames except colorspace)
         for widget in self.root.winfo_children():
@@ -600,7 +977,24 @@ class ThresholdingWindow:
         # Update current method
         self.current_method = "Simple" if self.color_space == "Grayscale" else "Range"
         
-    def _create_grayscale_method_controls(self):
+    def _create_grayscale_method_controls(self) -> None:
+        """
+        Create thresholding method controls specific to grayscale images.
+        
+        Builds method selection controls optimized for grayscale image processing,
+        including binary thresholding, Otsu's method, triangle method, and
+        adaptive thresholding options.
+        
+        Controls include:
+        - Method selection buttons (Simple, Otsu, Triangle, Adaptive)
+        - Threshold type dropdown for binary operations
+        - Adaptive method selection for adaptive thresholding
+        
+        Side Effects:
+            - Creates method selection interface
+            - Sets up method change callbacks
+            - Initializes UI variables for grayscale methods
+        """
         """Create method controls for grayscale."""
         # Reset UI variables
         self.threshold_method_var = None
@@ -639,7 +1033,23 @@ class ThresholdingWindow:
         self.adaptive_method_combo.pack(padx=5, pady=5)
         self.adaptive_method_combo.bind("<<ComboboxSelected>>", self._on_dropdown_adaptive_method_change)
     
-    def _create_color_method_controls(self):
+    def _create_color_method_controls(self) -> None:
+        """
+        Create thresholding method controls specific to color images.
+        
+        Builds method selection controls optimized for color image processing,
+        including range-based thresholding and other color-appropriate methods.
+        Currently focuses on range-based thresholding for multi-channel color spaces.
+        
+        Controls include:
+        - Range-based thresholding method selection
+        - Color space specific parameter controls
+        
+        Side Effects:
+            - Creates color-specific method selection interface
+            - Sets up appropriate callbacks for color methods
+            - Initializes UI variables for color processing
+        """
         """Create method controls for color spaces."""
         # Reset UI variables
         self.threshold_method_var = None
@@ -681,7 +1091,18 @@ class ThresholdingWindow:
         self.adaptive_method_combo.grid(row=0, column=1, padx=5, pady=2)
         self.adaptive_method_combo.bind("<<ComboboxSelected>>", self._on_dropdown_adaptive_method_change)
     
-    def _create_status_section(self):
+    def _create_status_section(self) -> None:
+        """
+        Create the status display section for parameter information.
+        
+        Creates a labeled frame that displays current thresholding parameters
+        and settings. This provides users with feedback about the current
+        configuration state.
+        
+        Side Effects:
+            - Creates status display frame
+            - Initializes status label for parameter display
+        """
         """Create status display section."""
         # Status display frame
         status_frame = ttk.LabelFrame(self.root, text="Current Parameters", style=self.theme_manager.get_frame_style())
@@ -691,7 +1112,18 @@ class ThresholdingWindow:
         self.status_text.pack(padx=5, pady=5, fill="x")
         self.status_text.config(state=tk.DISABLED)  # Read-only
     
-    def _create_buttons_section(self):
+    def _create_buttons_section(self) -> None:
+        """
+        Create the action buttons section for configuration management.
+        
+        Creates buttons for saving, loading, and managing thresholding
+        configurations, including preset management functionality.
+        
+        Side Effects:
+            - Creates button frame with action buttons
+            - Sets up save/load configuration functionality
+            - Adds preset management controls
+        """
         """Create buttons section."""
         button_frame = ttk.Frame(self.root, style=self.theme_manager.get_frame_style())
         button_frame.pack(padx=10, pady=10)
@@ -704,7 +1136,20 @@ class ThresholdingWindow:
         ttk.Button(button_frame, text="Load Config", command=self._load_config,
                   style=self.theme_manager.get_button_style()).pack(side=tk.LEFT, padx=5)
         
-    def _create_threshold_viewer(self):
+    def _create_threshold_viewer(self) -> None:
+        """
+        Create a dedicated ImageViewer instance for thresholding operations.
+        
+        Creates a specialized ImageViewer configured specifically for threshold
+        preview with full zoom, pan, and interaction capabilities. The viewer
+        is optimized for real-time threshold visualization.
+        
+        Side Effects:
+            - Creates minimal ImageViewer with custom configuration
+            - Sets up threshold processing pipeline
+            - Configures zoom and pan functionality
+            - Establishes parameter change callbacks
+        """
         """Create a dedicated ImageViewer for thresholding with full zoom/pan functionality."""
         # Import ImageViewer dynamically to avoid circular imports
         from ..core.image_viewer import ImageViewer
@@ -732,6 +1177,26 @@ class ThresholdingWindow:
         self.threshold_viewer.setup_viewer(image_processor_func=self._threshold_processor)
         
     def _create_minimal_image_viewer(self, config, trackbar_definitions):
+        """
+        Create a minimal ImageViewer optimized for thresholding operations.
+        
+        Builds a lightweight ImageViewer that only creates the windows and
+        functionality needed for thresholding, avoiding unnecessary overhead
+        while maintaining full zoom, pan, and interaction capabilities.
+        
+        Args:
+            config: ViewerConfig instance with window configuration.
+            trackbar_definitions: List of trackbar configuration dictionaries.
+        
+        Returns:
+            Configured ImageViewer instance optimized for thresholding.
+        
+        Side Effects:
+            - Creates minimal ImageViewer with custom methods
+            - Sets up threshold-specific processing pipeline
+            - Configures zoom and pan functionality
+            - Establishes parameter change callbacks
+        """
         """Create a minimal ImageViewer that only creates the windows we want."""
         # Import ImageViewer dynamically
         from ..core.image_viewer import ImageViewer
@@ -876,27 +1341,64 @@ class ThresholdingWindow:
         viewer.get_display_images = get_display_images
         viewer.set_display_images = set_display_images
         
-        # Create a simpler property-like interface
-        class DisplayImagesProxy:
-            def __get__(self, obj, objtype):
-                return get_display_images()
-            def __set__(self, obj, value):
-                set_display_images(value)
+        # Create a simple property-like interface using direct assignment
+        # Store the functions as methods on the viewer
+        viewer._get_display_images = get_display_images  
+        viewer._set_display_images = set_display_images
         
-        viewer.display_images = DisplayImagesProxy()
+        # Create property using Python's property() function
+        def display_images_getter(self):
+            return self._get_display_images()
+        
+        def display_images_setter(self, value):
+            return self._set_display_images(value)
+        
+        # Add the property to the viewer's class
+        viewer.__class__.display_images = property(display_images_getter, display_images_setter)
         
         # Initialize with empty images
         viewer._internal_images = []
         
         return viewer
         
-    def _create_log_method(self, viewer):
+    def _create_log_method(self, viewer) -> callable:
+        """
+        Create a no-operation log method for the minimal viewer.
+        
+        Provides a lightweight logging function that does nothing, reducing
+        overhead in the minimal viewer while maintaining interface compatibility.
+        
+        Args:
+            viewer: The ImageViewer instance to create the log method for.
+        
+        Returns:
+            callable: No-op log function.
+        """
         """Create a no-op log method for the minimal viewer."""
         def log_method(message):
             pass  # No logging for thresholding viewer
         return log_method
         
-    def _create_setup_viewer_method(self, viewer):
+    def _create_setup_viewer_method(self, viewer) -> callable:
+        """
+        Create a setup_viewer method optimized for thresholding operations.
+        
+        Creates a specialized setup method that initializes the viewer for
+        thresholding with optimized window management, trackbar setup, and
+        processing pipeline configuration.
+        
+        Args:
+            viewer: The ImageViewer instance to create the setup method for.
+        
+        Returns:
+            callable: Optimized setup_viewer method.
+        
+        Side Effects:
+            - Sets up viewer state and configuration
+            - Creates custom window manager
+            - Initializes trackbar system
+            - Configures processing pipeline
+        """
         """Create a setup_viewer method for the minimal viewer."""
         def setup_viewer_method(initial_images_for_first_frame=None, image_processor_func=None):
             pass
@@ -1037,7 +1539,23 @@ class ThresholdingWindow:
             
         return setup_viewer_method
         
-    def _create_cleanup_viewer_method(self, viewer):
+    def _create_cleanup_viewer_method(self, viewer) -> callable:
+        """
+        Create a cleanup method for proper resource management.
+        
+        Creates a cleanup method that properly destroys windows and releases
+        resources when the thresholding viewer is no longer needed.
+        
+        Args:
+            viewer: The ImageViewer instance to create the cleanup method for.
+        
+        Returns:
+            callable: Cleanup method for resource deallocation.
+        
+        Side Effects:
+            - Destroys OpenCV windows
+            - Releases viewer resources
+        """
         """Create a cleanup_viewer method for the minimal viewer."""
         def cleanup_viewer_method():
             pass
@@ -1046,7 +1564,25 @@ class ThresholdingWindow:
                 viewer.windows.destroy_all_windows()
         return cleanup_viewer_method
         
-    def _create_process_frame_method(self, viewer):
+    def _create_process_frame_method(self, viewer) -> callable:
+        """
+        Create an optimized frame processing method for threshold visualization.
+        
+        Creates a specialized processing method that handles image display
+        with zoom, pan, and threshold overlay capabilities optimized for
+        real-time threshold preview.
+        
+        Args:
+            viewer: The ImageViewer instance to create the process method for.
+        
+        Returns:
+            callable: Optimized frame processing method.
+        
+        Side Effects:
+            - Processes and displays images with transformations
+            - Applies zoom and pan transformations
+            - Updates display windows
+        """
         """Create a process frame method for the minimal viewer."""
         def process_frame_method():
             if not viewer.config.enable_debug or not viewer._should_continue_loop:
@@ -1095,7 +1631,24 @@ class ThresholdingWindow:
                 
         return process_frame_method
         
-    def _create_zoom_pan_method(self, viewer):
+    def _create_zoom_pan_method(self, viewer) -> callable:
+        """
+        Create zoom and pan transformation method for threshold viewer.
+        
+        Creates a method that handles zoom and pan transformations identical
+        to the main ImageViewer, providing consistent navigation experience
+        in the threshold preview.
+        
+        Args:
+            viewer: The ImageViewer instance to create the method for.
+        
+        Returns:
+            callable: Zoom and pan transformation method.
+        
+        Performance:
+            Time Complexity: O(1) - Direct coordinate transformations.
+            Space Complexity: O(1) - No additional memory allocation.
+        """
         """Create zoom and pan transformation method identical to main ImageViewer."""
         def zoom_pan_transform(image):
             import cv2
@@ -1179,15 +1732,67 @@ class ThresholdingWindow:
         
         
     def _create_custom_window_manager(self, config):
+        """
+        Create a custom window manager optimized for thresholding operations.
+        
+        Creates a specialized window manager that only creates the process
+        and trackbar windows needed for thresholding, avoiding unnecessary
+        text windows and reducing resource usage.
+        
+        Args:
+            config: ViewerConfig instance with window configuration.
+        
+        Returns:
+            ThresholdWindowManager: Custom window manager instance.
+        
+        Side Effects:
+            - Creates nested ThresholdWindowManager class
+            - Configures window creation for thresholding needs
+        """
         """Create a custom window manager that only creates process and trackbar windows."""
         from types import SimpleNamespace
         
         class ThresholdWindowManager:
-            def __init__(self, config):
+            """
+            Custom window manager optimized for thresholding operations.
+            
+            Specialized window manager that creates only the essential windows
+            needed for thresholding (process and trackbar windows), avoiding
+            unnecessary text windows to reduce resource usage and complexity.
+            
+            Attributes:
+                config: ViewerConfig instance with window configuration.
+                windows_created (bool): Flag indicating if windows have been created.
+            """
+            
+            def __init__(self, config) -> None:
+                """
+                Initialize the threshold window manager.
+                
+                Args:
+                    config: ViewerConfig instance containing window settings.
+                """
                 self.config = config
                 self.windows_created = False
                 
-            def create_windows(self, mouse_callback, text_mouse_callback):
+            def create_windows(self, mouse_callback, text_mouse_callback) -> None:
+                """
+                Create only the process and trackbar windows needed for thresholding.
+                
+                Creates a minimal set of OpenCV windows optimized for thresholding
+                operations, including the main process window for image display
+                and trackbar window for parameter controls.
+                
+                Args:
+                    mouse_callback: Callback function for mouse events in process window.
+                    text_mouse_callback: Text mouse callback (unused in threshold mode).
+                
+                Side Effects:
+                    - Creates process window with zoom/pan capabilities
+                    - Creates trackbar window if trackbars are defined
+                    - Sets up mouse callbacks for interaction
+                    - Sets windows_created flag on success
+                """
                 if self.windows_created: return
                 if not self.config.enable_debug: return
                 
@@ -1216,7 +1821,18 @@ class ThresholdingWindow:
                     print(f"Error creating threshold windows: {e}")
                     self.windows_created = False
                     
-            def destroy_all_windows(self):
+            def destroy_all_windows(self) -> None:
+                """
+                Destroy created OpenCV windows and clean up resources.
+                
+                Selectively destroys only the windows created by this manager
+                (process and trackbar windows) and resets the internal state.
+                
+                Side Effects:
+                    - Destroys process and trackbar windows if they exist
+                    - Resets windows_created flag
+                    - Handles window destruction errors gracefully
+                """
                 if self.windows_created:
                     try:
                         # Only destroy our specific windows
@@ -1229,7 +1845,22 @@ class ThresholdingWindow:
                     except: pass
                     self.windows_created = False
                     
-            def resize_process_window(self, width, height):
+            def resize_process_window(self, width: int, height: int) -> None:
+                """
+                Resize the process window to the specified dimensions.
+                
+                Adjusts the size of the main process window while applying
+                configured size constraints and validating window visibility.
+                
+                Args:
+                    width: Target width in pixels.
+                    height: Target height in pixels.
+                
+                Side Effects:
+                    - Resizes process window if valid and visible
+                    - Applies size constraints from configuration
+                    - Silently handles resize errors
+                """
                 if not self.windows_created: return
                 try:
                     if cv2.getWindowProperty(self.config.process_window_name, cv2.WND_PROP_VISIBLE) < 1:
@@ -1245,7 +1876,16 @@ class ThresholdingWindow:
         
         return ThresholdWindowManager(config)
         
-    def _get_initial_grayscale_trackbars(self):
+    def _get_initial_grayscale_trackbars(self) -> list:
+        """
+        Get initial trackbar definitions for grayscale thresholding.
+        
+        Returns the default set of trackbars appropriate for grayscale
+        image thresholding operations.
+        
+        Returns:
+            list: List of trackbar configuration dictionaries for grayscale.
+        """
         """Get initial trackbar definitions for grayscale."""
         # Create lambdas to avoid method reference issues
         return [
@@ -1253,7 +1893,16 @@ class ThresholdingWindow:
             make_trackbar("Max", "max_value", 255, 255, custom_callback=lambda v: self._on_param_change(v))
         ]
         
-    def _get_initial_color_trackbars(self):
+    def _get_initial_color_trackbars(self) -> list:
+        """
+        Get initial trackbar definitions for color space thresholding.
+        
+        Returns the default set of trackbars appropriate for color image
+        thresholding in the current color space.
+        
+        Returns:
+            list: List of trackbar configuration dictionaries for color spaces.
+        """
         """Get initial trackbar definitions for color spaces."""
         ranges = self.ranges.get(self.color_space, {})
         trackbars = []
@@ -1267,7 +1916,21 @@ class ThresholdingWindow:
             
         return trackbars
         
-    def _on_param_change(self, value=None):
+    def _on_param_change(self, value=None) -> None:
+        """
+        Handle parameter changes from trackbars and update threshold display.
+        
+        Called when any trackbar value changes, triggering an update of the
+        threshold visualization and status display.
+        
+        Args:
+            value: The new parameter value (optional).
+        
+        Side Effects:
+            - Triggers threshold viewer update
+            - Updates status display
+            - Prevents recursive parameter updates
+        """
         """Handle parameter changes from trackbars."""
         try:
             if self.threshold_viewer and not self.is_processing:
@@ -1279,7 +1942,25 @@ class ThresholdingWindow:
             import traceback
             traceback.print_exc()
             
-    def _threshold_processor(self, params, log_func):
+    def _threshold_processor(self, params: dict, log_func: callable) -> list:
+        """
+        Process images for the threshold viewer with current parameters.
+        
+        Main processing function that applies thresholding to the current
+        image using the specified parameters and returns the processed
+        result for display.
+        
+        Args:
+            params: Dictionary of current parameter values from trackbars.
+            log_func: Logging function for status messages.
+        
+        Returns:
+            list: List of (image, title) tuples for display.
+        
+        Side Effects:
+            - Processes current image with thresholding
+            - Updates status display
+        """
         """Process images for the threshold viewer."""
         if not self.viewer._internal_images or self.is_processing:
             return [(np.zeros((100, 100, 1), dtype=np.uint8), "No Image")]
@@ -1297,7 +1978,34 @@ class ThresholdingWindow:
         finally:
             self.is_processing = False
             
-    def _apply_thresholding(self, image, params):
+    def _apply_thresholding(self, image, params: dict):
+        """
+        Apply thresholding to the image using current parameters.
+        
+        Core thresholding function that processes the input image according
+        to the current method and parameter settings, supporting multiple
+        color spaces and thresholding techniques. Main processing algorithm.
+        
+        Args:
+            image: Input image array to threshold. Must be valid numpy array.
+            params (dict): Dictionary of current parameter values from trackbars.
+                          Contains method-specific parameters like threshold values,
+                          color channel ranges, and processing options.
+        
+        Returns:
+            numpy.ndarray: Thresholded image array with same dimensions as input.
+                          Binary or processed image based on selected method.
+        
+        Examples:
+            >>> params = {'threshold': 127, 'max_value': 255, 'threshold_type_idx': 0}
+            >>> result = threshold_window._apply_thresholding(image, params)
+            >>> # Returns thresholded binary image
+            >>> print(result.shape)  # Same as input image shape
+            
+        Performance:
+            Time Complexity: O(n) where n is the number of pixels in the image.
+            Space Complexity: O(n) for color space conversion and image copies.
+        """
         """Apply thresholding to the image using current parameters."""
         processor = ThresholdProcessor(image)
         converted_image = processor.convert_color_space(self.color_space)
@@ -1406,7 +2114,19 @@ class ThresholdingWindow:
                 
                 return processor.apply_multi_channel_threshold(converted_image, thresholding_params)
 
-    def create_trackbars(self):
+    def create_trackbars(self) -> None:
+        """
+        Initialize trackbar definitions and create the initial trackbar set.
+        
+        Sets up trackbar configurations for both grayscale and color space
+        thresholding, then creates the initial set of trackbars appropriate
+        for the current color space and method.
+        
+        Side Effects:
+            - Defines trackbar configurations for all methods
+            - Creates initial trackbars for current color space
+            - Sets up parameter change callbacks
+        """
         """Initialize trackbar definitions and create initial set."""
         if not self.threshold_viewer:
             return
@@ -1431,7 +2151,19 @@ class ThresholdingWindow:
         # Trigger initial threshold update
         self.update_threshold()
     
-    def _define_grayscale_trackbars(self):
+    def _define_grayscale_trackbars(self) -> None:
+        """
+        Define trackbar configurations for all grayscale thresholding methods.
+        
+        Creates comprehensive trackbar definitions for grayscale image processing
+        including simple binary thresholding, Otsu's method, triangle method,
+        and adaptive thresholding with all their respective parameters.
+        
+        Side Effects:
+            - Populates method_trackbars dictionary with grayscale configurations
+            - Sets up parameter ranges and initial values
+            - Configures callback functions for parameter updates
+        """
         """Define trackbar configurations for grayscale thresholding methods."""
         # Common trackbars for Simple/Otsu/Triangle methods
         common_configs = [
@@ -1452,7 +2184,19 @@ class ThresholdingWindow:
         self.method_trackbars["Triangle"] = common_configs
         self.method_trackbars["Adaptive"] = adaptive_configs
     
-    def _define_color_trackbars(self):
+    def _define_color_trackbars(self) -> None:
+        """
+        Define trackbar configurations for all color space thresholding methods.
+        
+        Creates comprehensive trackbar definitions for color image processing
+        including range-based thresholding with min/max values for each
+        channel in the current color space.
+        
+        Side Effects:
+            - Populates method_trackbars dictionary with color configurations
+            - Sets up channel-specific parameter ranges
+            - Configures callback functions for parameter updates
+        """
         """Define trackbar configurations for color space thresholding methods."""
         ranges = self.ranges.get(self.color_space, {})
         
@@ -1491,7 +2235,23 @@ class ThresholdingWindow:
         self.method_trackbars["Adaptive"] = adaptive_configs
     
     
-    def _switch_to_method(self, new_method):
+    def _switch_to_method(self, new_method: str) -> None:
+        """
+        Switch trackbars to display only those relevant for the specified method.
+        
+        Updates the trackbar display to show parameters appropriate for the
+        newly selected thresholding method, hiding irrelevant controls and
+        showing method-specific parameters.
+        
+        Args:
+            new_method: The name of the thresholding method to switch to.
+        
+        Side Effects:
+            - Updates trackbar manager with new configurations
+            - Updates current_method attribute
+            - Refreshes trackbar display
+            - Updates current_trackbars list
+        """
         """Switch trackbars to show only those relevant for the new method."""
         if new_method == self.current_method:
             return  # No change needed
@@ -1528,14 +2288,38 @@ class ThresholdingWindow:
         # Log the switch
         pass
         
-    def _get_trackbar_configs_for_method(self, method):
+    def _get_trackbar_configs_for_method(self, method: str) -> list:
+        """
+        Get fresh trackbar configurations for the specified method.
+        
+        Retrieves appropriate trackbar configurations for the given method,
+        ensuring proper callback functions and parameter ranges are set.
+        
+        Args:
+            method: The thresholding method name to get configurations for.
+        
+        Returns:
+            list: List of trackbar configuration dictionaries.
+        """
         """Get fresh trackbar configurations for the specified method with proper callbacks."""
         if self.color_space == "Grayscale":
             return self._get_grayscale_trackbars_for_method(method)
         else:
             return self._get_color_trackbars_for_method(method)
             
-    def _get_grayscale_trackbars_for_method(self, method):
+    def _get_grayscale_trackbars_for_method(self, method: str) -> list:
+        """
+        Get grayscale trackbar configurations for the specified method.
+        
+        Returns trackbar configurations appropriate for the specified grayscale
+        thresholding method, including method-specific parameters and ranges.
+        
+        Args:
+            method: The grayscale thresholding method name.
+        
+        Returns:
+            list: List of trackbar configurations for the method.
+        """
         """Get grayscale trackbar configurations for the specified method."""
         
         # Create safer callback functions that handle errors
@@ -1571,7 +2355,20 @@ class ThresholdingWindow:
         else:
             return []
             
-    def _get_color_trackbars_for_method(self, method):
+    def _get_color_trackbars_for_method(self, method: str) -> list:
+        """
+        Get color space trackbar configurations for the specified method.
+        
+        Returns trackbar configurations appropriate for the specified color
+        thresholding method, including channel-specific parameters and ranges
+        for the current color space.
+        
+        Args:
+            method: The color thresholding method name.
+        
+        Returns:
+            list: List of trackbar configurations for the method.
+        """
         """Get color space trackbar configurations for the specified method."""
         ranges = self.ranges.get(self.color_space, {})
         
@@ -1627,7 +2424,22 @@ class ThresholdingWindow:
         else:
             return []
     
-    def _update_ui_for_method(self, method):
+    def _update_ui_for_method(self, method: str) -> None:
+        """
+        Update UI elements to reflect the selected thresholding method.
+        
+        Adjusts the user interface to show or hide controls appropriate for
+        the selected method, including threshold type options and adaptive
+        method selections.
+        
+        Args:
+            method: The selected thresholding method name.
+        
+        Side Effects:
+            - Shows/hides method-specific UI elements
+            - Updates dropdown options
+            - Adjusts control visibility
+        """
         """Update UI elements to reflect the selected method."""
         # Show/hide adaptive frame for grayscale
         if self.color_space == "Grayscale" and hasattr(self, 'adaptive_frame'):
@@ -1653,7 +2465,21 @@ class ThresholdingWindow:
                 if hasattr(self, 'threshold_type_combo'):
                     self.threshold_type_combo['values'] = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
     
-    def _on_threshold_type_change(self, value):
+    def _on_threshold_type_change(self, value: int) -> None:
+        """
+        Handle threshold type trackbar changes and update dropdown.
+        
+        Updates the threshold type dropdown to reflect changes made via
+        the trackbar control, maintaining synchronization between different
+        input methods.
+        
+        Args:
+            value: The new threshold type value from trackbar.
+        
+        Side Effects:
+            - Updates threshold type dropdown selection
+            - Maintains UI consistency
+        """
         """Handle threshold type trackbar changes."""
         try:
             threshold_types = ["BINARY", "BINARY_INV", "TRUNC", "TOZERO", "TOZERO_INV"]
@@ -1674,7 +2500,20 @@ class ThresholdingWindow:
             import traceback
             traceback.print_exc()
     
-    def _on_adaptive_method_change(self, value):
+    def _on_adaptive_method_change(self, value: int) -> None:
+        """
+        Handle adaptive method trackbar changes and update dropdown.
+        
+        Updates the adaptive method dropdown to reflect changes made via
+        the trackbar control for adaptive thresholding.
+        
+        Args:
+            value: The new adaptive method value from trackbar.
+        
+        Side Effects:
+            - Updates adaptive method dropdown selection
+            - Maintains UI consistency
+        """
         """Handle adaptive method trackbar changes."""
         try:
             adaptive_methods = ["MEAN_C", "GAUSSIAN_C"]
@@ -1686,7 +2525,22 @@ class ThresholdingWindow:
             import traceback
             traceback.print_exc()
     
-    def _on_dropdown_threshold_type_change(self, event=None):
+    def _on_dropdown_threshold_type_change(self, event=None) -> None:
+        """
+        Handle threshold type dropdown changes and update trackbar.
+        
+        Updates the threshold type trackbar to reflect changes made via
+        the dropdown selection, maintaining synchronization between
+        different input methods.
+        
+        Args:
+            event: The tkinter event that triggered the change (optional).
+        
+        Side Effects:
+            - Updates threshold type trackbar value
+            - Maintains UI consistency
+            - Triggers threshold update
+        """
         """Handle threshold type dropdown changes - update trackbar."""
         if not self.threshold_type_var or not self.threshold_viewer or not self.threshold_viewer.trackbar:
             return
@@ -1710,7 +2564,21 @@ class ThresholdingWindow:
         # Update thresholding
         self.update_threshold()
     
-    def _on_dropdown_adaptive_method_change(self, event=None):
+    def _on_dropdown_adaptive_method_change(self, event=None) -> None:
+        """
+        Handle adaptive method dropdown changes and update trackbar.
+        
+        Updates the adaptive method trackbar to reflect changes made via
+        the dropdown selection for adaptive thresholding parameters.
+        
+        Args:
+            event: The tkinter event that triggered the change (optional).
+        
+        Side Effects:
+            - Updates adaptive method trackbar value
+            - Maintains UI consistency
+            - Triggers threshold update
+        """
         """Handle adaptive method dropdown changes - update trackbar."""
         if not self.adaptive_method_var or not self.threshold_viewer or not self.threshold_viewer.trackbar:
             return
@@ -1734,7 +2602,19 @@ class ThresholdingWindow:
         # Update thresholding
         self.update_threshold()
     
-    def on_color_method_change(self):
+    def on_color_method_change(self) -> None:
+        """
+        Handle threshold method selection changes for color spaces.
+        
+        Updates the thresholding interface when the user selects a different
+        method for color image processing. Currently handles range-based
+        thresholding method changes.
+        
+        Side Effects:
+            - Updates current method selection
+            - Switches trackbars to match selected method
+            - Updates UI to reflect method capabilities
+        """
         """Handle threshold method selection changes for color spaces."""
         if not self.threshold_method_var:
             return
@@ -1745,7 +2625,19 @@ class ThresholdingWindow:
         self._switch_to_method(method)
         self.update_threshold()
     
-    def on_method_change(self):
+    def on_method_change(self) -> None:
+        """
+        Handle threshold method selection changes for the current interface.
+        
+        Updates the thresholding interface when the user selects a different
+        thresholding method, ensuring appropriate controls and parameters
+        are displayed for the selected method.
+        
+        Side Effects:
+            - Updates method-specific UI elements
+            - Switches trackbar configurations
+            - Updates parameter controls
+        """
         """Handle threshold method selection changes."""
         if not self.threshold_method_var:
             return
@@ -1756,7 +2648,32 @@ class ThresholdingWindow:
         self._switch_to_method(method)
         self.update_threshold()
 
-    def update_threshold(self, _=None):
+    def update_threshold(self, _=None) -> None:
+        """
+        Update the thresholding display by triggering the threshold viewer.
+        
+        Forces an update of the threshold preview by calling the viewer's
+        update display method. This ensures the threshold visualization
+        reflects current parameter settings. Core method for real-time updates.
+        
+        Args:
+            _ (optional): Unused parameter for callback compatibility. Allows this
+                         method to be used as trackbar callback.
+        
+        Returns:
+            None: Updates display as side effect, no return value.
+        
+        Examples:
+            >>> threshold_window = ThresholdingWindow(viewer, "HSV")
+            >>> threshold_window.create_unified_window()
+            >>> threshold_window.update_threshold()
+            >>> # Threshold preview updated with current parameters
+            >>> # Status display shows current settings
+            
+        Performance:
+            Time Complexity: O(n) where n is number of image pixels for processing.
+            Space Complexity: O(n) - Copy of image for threshold processing.
+        """
         """Update the thresholding display by triggering the threshold viewer."""
         if not self.threshold_viewer or self.is_processing:
             return
@@ -1807,7 +2724,19 @@ class ThresholdingWindow:
         finally:
             self.is_processing = False
 
-    def _update_status_display(self):
+    def _update_status_display(self) -> None:
+        """
+        Update the status display with current thresholding parameters.
+        
+        Refreshes the status text area to show the current method, color space,
+        and parameter values, providing users with feedback about the current
+        configuration state.
+        
+        Side Effects:
+            - Updates status text widget content
+            - Displays current method and parameters
+            - Shows color space information
+        """
         """Update the status display with current parameters."""
         if not hasattr(self, 'status_text') or not self.status_text or not self.threshold_viewer:
             return
@@ -1870,7 +2799,22 @@ class ThresholdingWindow:
             # Widget was destroyed while we were updating it
             pass
 
-    def _save_config(self):
+    def _save_config(self) -> None:
+        """
+        Save current thresholding configuration to a JSON file.
+        
+        Opens a file save dialog and saves the current thresholding parameters,
+        method selection, and color space settings to a JSON configuration file
+        for later restoration.
+        
+        Side Effects:
+            - Opens file save dialog
+            - Writes configuration to selected file
+            - Shows success/error messages
+        
+        Raises:
+            Exception: If file save operation fails.
+        """
         """Save current thresholding configuration to file."""
         if not self.threshold_viewer or not self.threshold_viewer.trackbar:
             return
@@ -1896,7 +2840,23 @@ class ThresholdingWindow:
         except Exception as e:
             print(f"Error saving config: {e}")
 
-    def _load_config(self):
+    def _load_config(self) -> None:
+        """
+        Load thresholding configuration from a JSON file.
+        
+        Opens a file open dialog and loads previously saved thresholding
+        parameters, restoring the method selection, color space, and
+        parameter values.
+        
+        Side Effects:
+            - Opens file open dialog
+            - Loads configuration from selected file
+            - Updates UI to reflect loaded settings
+            - Shows success/error messages
+        
+        Raises:
+            Exception: If file load operation fails or format is invalid.
+        """
         """Load thresholding configuration from file."""
         if not self.threshold_viewer or not self.threshold_viewer.trackbar:
             return
@@ -1932,7 +2892,19 @@ class ThresholdingWindow:
         except Exception as e:
             print(f"Error loading config: {e}")
 
-    def _show_presets(self):
+    def _show_presets(self) -> None:
+        """
+        Display preset configuration options in a popup window.
+        
+        Creates a popup window showing predefined thresholding presets
+        appropriate for the current color space, allowing users to quickly
+        apply common thresholding configurations.
+        
+        Side Effects:
+            - Creates preset selection popup window
+            - Displays available presets for current color space
+            - Sets up preset application callbacks
+        """
         """Show preset configurations popup."""
         preset_window = tk.Toplevel(self.root)
         preset_window.title("Thresholding Presets")
@@ -1953,7 +2925,17 @@ class ThresholdingWindow:
             ttk.Label(btn_frame, text=preset_data.get("description", ""), 
                      font=("Arial", 8), foreground="gray").pack(side=tk.LEFT, padx=(10, 0))
 
-    def _get_presets(self):
+    def _get_presets(self) -> dict:
+        """
+        Get predefined preset configurations for the current color space.
+        
+        Returns a dictionary of predefined thresholding configurations
+        optimized for common use cases in the current color space.
+        
+        Returns:
+            dict: Dictionary of preset configurations with descriptive names
+                 as keys and parameter dictionaries as values.
+        """
         """Get predefined presets for current color space."""
         if self.color_space == "Grayscale":
             return {
@@ -2010,7 +2992,24 @@ class ThresholdingWindow:
                 }
             }
 
-    def _apply_preset(self, preset_data, preset_window):
+    def _apply_preset(self, preset_data: dict, preset_window) -> None:
+        """
+        Apply a preset configuration to the current thresholding setup.
+        
+        Applies the specified preset parameters to the current thresholding
+        interface, updating trackbars, method selection, and UI state to
+        match the preset configuration.
+        
+        Args:
+            preset_data: Dictionary containing preset parameter values.
+            preset_window: The preset selection window to close after application.
+        
+        Side Effects:
+            - Updates method selection and UI
+            - Sets trackbar values to preset parameters
+            - Closes preset selection window
+            - Triggers threshold update
+        """
         """Apply a preset configuration."""
         try:
             # Set method
@@ -2038,11 +3037,34 @@ class ThresholdingWindow:
         except Exception as e:
             print(f"Error applying preset: {e}")
     
-    def set_close_callback(self, callback):
+    def set_close_callback(self, callback: callable) -> None:
+        """
+        Set a callback function to be called when the window is closed.
+        
+        Registers a callback function that will be invoked during window
+        cleanup, allowing parent components to perform necessary cleanup
+        operations.
+        
+        Args:
+            callback: Callable function to invoke on window close.
+        """
         """Set a callback to be called when the window is closed."""
         self.close_callback = callback
     
-    def destroy_window(self):
+    def destroy_window(self) -> None:
+        """
+        Clean up and destroy the thresholding window and associated resources.
+        
+        Performs comprehensive cleanup of the thresholding window including
+        destroying the tkinter window, cleaning up the threshold viewer,
+        and invoking any registered close callbacks.
+        
+        Side Effects:
+            - Destroys tkinter window if present
+            - Cleans up threshold viewer and resources
+            - Invokes close callback if registered
+            - Resets window state flags
+        """
         # Call close callback before destroying
         if self.close_callback:
             try:
