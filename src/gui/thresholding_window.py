@@ -1956,8 +1956,6 @@ class ThresholdingWindow:
                             cv2.resizeWindow(self.config.trackbar_window_name, 600, 400)  # Wider for long parameter names
                     
                     self.windows_created = True
-                    print(f"[Threshold Windows] Created process window: {self.config.process_window_name}")
-                    print(f"[Threshold Windows] Created trackbar window: {self.config.trackbar_window_name}")
                     
                 except Exception as e:
                     print(f"Error creating threshold windows: {e}")

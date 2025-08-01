@@ -58,6 +58,28 @@ See `examples/README.md` for detailed explanations of each example.
 - **Shift+P**: Show pixel profiles
 - **Q/ESC**: Quit
 
+## 📸 Interface Gallery
+
+### Real-Time Parameter Control
+![Trackbar Interface](assets/trackbar.png)
+*50+ preconfigured trackbars for real-time OpenCV parameter tuning - adjust Gaussian blur, edge detection, morphological operations, and thresholding with immediate visual feedback*
+
+### Professional Analysis Suite  
+![Analysis Controls](assets/analysis_controls.png)
+*Comprehensive analysis control panel with ROI management, drawing tools, histogram generation, pixel intensity profiling, and integrated data export functionality*
+
+### Advanced Multi-Space Thresholding
+![Thresholding Controls](assets/thresholding_control_window.png)
+*Sophisticated thresholding interface supporting 7 color spaces (BGR, HSV, Lab, etc.) with binary, adaptive, Otsu, and range-based methods for precise image segmentation*
+
+### Multi-Format Data Export
+![Export Interface](assets/export_window.png)
+*Professional export system for analysis results - save histograms, pixel profiles, and geometric data in JSON/CSV formats with configurable options*
+
+### Interactive Text Display
+![Text Window](assets/text_window.png)
+*Clean text interface for displaying analysis results, parameter values, and system information with theme-aware styling*
+
 ## 🏗️ Architecture
 
 ```
