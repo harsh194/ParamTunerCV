@@ -12,9 +12,9 @@ APP_DEBUG_MODE = True  # Set to True to see windows, False for headless processi
 
 trackbar_definitions = [
     {"name": "Show Image", "param_name": "show", "max_value": "num_images-1", "initial_value": 0},
-    {"name": "Block Count", "param_name": "count", "max_value": 50, "initial_value": 10}, # Initial value 10
-    {"name": "Gaussian Size", "param_name": "GaussianSize", "max_value": 31, "callback": "odd", "initial_value": 5}, # Initial value 5
-    {"name": "Threshold Val", "param_name": "g_thresh", "max_value": 255, "initial_value": 128}, # Initial value 128
+    {"name": "Count", "param_name": "count", "max_value": 50, "initial_value": 10}, # Initial value 10
+    {"name": "Gauss Size", "param_name": "GaussianSize", "max_value": 31, "callback": "odd", "initial_value": 5}, # Initial value 5
+    {"name": "Thresh Val", "param_name": "g_thresh", "max_value": 255, "initial_value": 128}, # Initial value 128
 ]
 
 IMG_HEIGHT, IMG_WIDTH = 600, 800
@@ -52,7 +52,6 @@ while viewer.should_loop_continue():
 
     gray_image = cv2.cvtColor(base_color_image, cv2.COLOR_BGR2GRAY)
     viewer.log(f"shape of grayscale image - {gray_image.shape}")
-    # print(f"shape of grayscale image - {gray_image.shape}")
     gauss_image = gray_image.copy()
     if current_gaussian_size > 0:
         try:

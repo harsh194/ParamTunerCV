@@ -63,16 +63,31 @@ class Tooltip:
         
         Sets up event bindings for mouse enter and leave events to automatically
         show and hide the tooltip. The tooltip popup is not created until the
-        first hover event.
+        first hover event to optimize memory usage.
         
         Args:
             widget: The tkinter widget to attach the tooltip to. Can be any
-                   tkinter widget that supports event binding.
-            text: The text content to display in the tooltip popup.
+                   tkinter widget that supports event binding (Button, Label, Entry, etc.).
+            text (str): The text content to display in the tooltip popup. Multi-line
+                       text is supported but will be displayed as single line.
         
-        Side Effects:
-            - Binds mouse enter event to show_tooltip method
-            - Binds mouse leave event to hide_tooltip method
+        Returns:
+            None: Constructor initializes instance, no return value.
+        
+        Examples:
+            >>> import tkinter as tk
+            >>> from tkinter import ttk
+            >>> root = tk.Tk()
+            >>> button = ttk.Button(root, text="Save")
+            >>> tooltip = Tooltip(button, "Save the current document")
+            >>> # Tooltip will appear when mouse hovers over button
+            >>> entry = ttk.Entry(root)
+            >>> Tooltip(entry, "Enter filename here")
+            >>> # Multiple tooltips can be created for different widgets
+            
+        Performance:
+            Time Complexity: O(1) - Simple initialization and event binding.
+            Space Complexity: O(1) - Fixed memory for tooltip instance.
         """
         self.widget = widget
         self.text = text
@@ -86,15 +101,23 @@ class Tooltip:
         
         Creates and shows a popup window containing the tooltip text, positioned
         slightly offset from the widget to avoid obscuring the cursor. The popup
-        uses a light yellow background with a solid border for visibility.
+        uses a light yellow background (#ffffe0) with a solid border for visibility.
         
         Args:
             event: The tkinter mouse enter event that triggered the tooltip display.
+                  Contains information about the mouse cursor position.
         
-        Side Effects:
-            - Creates a new Toplevel window for the tooltip
-            - Positions the window near the widget
-            - Configures window styling and text display
+        Returns:
+            None: Creates and displays tooltip window as side effect, no return value.
+        
+        Examples:
+            >>> tooltip = Tooltip(button, "Click to save")
+            >>> # show_tooltip called automatically on mouse enter
+            >>> # Tooltip appears at offset position (widget_x+25, widget_y+25)
+            
+        Performance:
+            Time Complexity: O(1) - Fixed window creation and positioning operations.
+            Space Complexity: O(1) - Single popup window and label allocation.
         """
         x, y, _, _ = self.widget.bbox("insert")
         x += self.widget.winfo_rootx() + 25
@@ -115,13 +138,24 @@ class Tooltip:
         
         Removes the tooltip popup from the screen and cleans up the window
         resources. Safe to call multiple times or when no tooltip is visible.
+        Prevents memory leaks by properly destroying the popup window.
         
         Args:
             event: The tkinter mouse leave event that triggered the tooltip hiding.
+                  Contains information about the mouse cursor leaving the widget area.
         
-        Side Effects:
-            - Destroys the tooltip window if it exists
-            - Clears the tooltip_window reference
+        Returns:
+            None: Destroys tooltip window as side effect, no return value.
+        
+        Examples:
+            >>> tooltip = Tooltip(button, "Click to save")
+            >>> # hide_tooltip called automatically on mouse leave
+            >>> # Tooltip disappears and window resources are cleaned up
+            >>> # Safe to call multiple times - checks if window exists
+            
+        Performance:
+            Time Complexity: O(1) - Simple window destruction and reference clearing.
+            Space Complexity: O(1) - Frees memory allocated for popup window.
         """
         if self.tooltip_window:
             self.tooltip_window.destroy()

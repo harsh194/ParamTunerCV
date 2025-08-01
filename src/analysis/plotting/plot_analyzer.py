@@ -161,27 +161,11 @@ try:
     # Set the working backend
     matplotlib.use(working_backend, force=True)
     
-    # Print which backend was successfully configured
-    print(f"Matplotlib backend: {backend_tried}")
+    # Set the working backend (removed debug print)
     
-    # Show info and warnings for different backends
-    if working_backend in ['Qt5Agg', 'Qt4Agg']:
-        if opencv_detected:
-            print("⚠️  WARNING: Qt backend with OpenCV detected - this may cause GIL threading errors!")
-            print("   → Consider using TkAgg backend for OpenCV applications")
-        else:
-            print("✓ Qt backend detected - plots will run in main thread for optimal stability")
-    elif working_backend == 'TkAgg':
-        if opencv_detected:
-            print("⚠️  WARNING: TkAgg backend with OpenCV may still cause GIL conflicts!")
-            print("   → Agg backend is recommended for OpenCV applications")
-        else:
-            print("Warning: Using TkAgg backend. Qt backends are recommended for better stability.")
-            print("  → Install PyQt5 for better performance: pip install PyQt5>=5.15.0")
-    elif working_backend == 'Agg':
-        if not opencv_detected:
-            # Only warn if not using OpenCV - Agg backend is expected with OpenCV
-            pass
+    # Backend info and warnings (removed debug output)
+    # Different backends have different compatibility with OpenCV
+    # but we suppress the startup messages to reduce console noise
     
     MATPLOTLIB_AVAILABLE = True
     
@@ -465,17 +449,17 @@ class PlotAnalyzer:
             Time Complexity: O(∞) - runs continuously until stopped.
             Space Complexity: O(1) - minimal memory for queue processing.
         """
-        print("Plot worker thread started")
+        # Plot worker thread started
         while self._plotting_active:
             try:
                 try:
-                    print("Waiting for plot request...")
+                    # Waiting for plot request...
                     plot_request = self._plot_queue.get(timeout=0.5)
                     if plot_request is None:  # Shutdown signal
-                        print("Received shutdown signal")
+                        # Received shutdown signal
                         break
                     
-                    print(f"Processing plot request: {plot_request['type']}")
+                    # Processing plot request
                     plot_type = plot_request['type']
                     if plot_type == 'histogram':
                         self._create_histogram_plot_internal(**plot_request['args'])
@@ -483,7 +467,7 @@ class PlotAnalyzer:
                         self._create_pixel_profile_plot_internal(**plot_request['args'])
                     
                     self._plot_queue.task_done()
-                    print("Plot request completed")
+                    # Plot request completed
                 except:
                     # Queue was empty or timeout occurred, continue checking
                     threading.Event().wait(0.1)  # Small delay when queue is empty
@@ -492,7 +476,7 @@ class PlotAnalyzer:
                 print(f"Plot worker error: {e}")
                 # Continue running even if there's an error
                 threading.Event().wait(0.1)
-        print("Plot worker thread ended")
+        # Plot worker thread ended
     
     def _start_plot_thread(self) -> None:
         """Start the plotting thread if not already running.
@@ -596,7 +580,7 @@ class PlotAnalyzer:
         
         # For OpenCV + Agg backend, run directly in main thread (no GUI conflicts)
         if self._opencv_detected and self._is_agg_backend:
-            print("Using Agg backend with OpenCV - direct main thread execution")
+            # Using Agg backend with OpenCV - direct main thread execution
             self._create_pixel_profile_plot_internal(image.copy(), line_coords, title)
             return
         
@@ -734,7 +718,7 @@ class PlotAnalyzer:
             # Handle display based on backend type
             if self._is_agg_backend and self._opencv_detected:
                 # Agg backend in OpenCV app - convert to OpenCV image and display
-                print("Converting profile plot to OpenCV image...")
+                # Converting profile plot to OpenCV image...
                 opencv_img = self._figure_to_opencv_image(fig)
                 
                 if opencv_img is not None:
@@ -753,8 +737,7 @@ class PlotAnalyzer:
                         cv2.resizeWindow(window_name, new_width, new_height)
                     
                     cv2.imshow(window_name, opencv_img)
-                    print(f"High-quality profile displayed in OpenCV window: {window_name}")
-                    print(f"Plot resolution: {width}x{height} pixels")
+                    # High-quality profile displayed in OpenCV window
                     
                     # Store window name for cleanup tracking
                     if not hasattr(self, '_opencv_windows'):
@@ -766,7 +749,8 @@ class PlotAnalyzer:
                     self._last_profile_window_name = window_name
                     
                 else:
-                    print("Failed to convert profile plot to OpenCV image")
+                    # Failed to convert profile plot to OpenCV image
+                    pass
                     
                 # Close the matplotlib figure to save memory
                 plt.close(fig)
@@ -847,13 +831,11 @@ class PlotAnalyzer:
             print("Matplotlib not available for histogram plotting")
             return
         
-        print(f"Creating histogram plot with backend: {self._current_backend}")
-        print(f"OpenCV detected: {self._opencv_detected}")
-        print(f"Image shape: {image.shape if image is not None else 'None'}")
+        # Creating histogram plot with current backend
         
         # For OpenCV + Agg backend, run directly in main thread (no GUI conflicts)
         if self._opencv_detected and self._is_agg_backend:
-            print("Using Agg backend with OpenCV - direct main thread execution")
+            # Using Agg backend with OpenCV - direct main thread execution
             self._create_histogram_plot_internal(
                 image.copy(),
                 roi,
@@ -865,7 +847,7 @@ class PlotAnalyzer:
         # For other backends, use previous threading logic
         if self._opencv_detected or self._current_backend in ['TkAgg']:
             # Use threading for problematic combinations
-            print("Starting plot thread...")
+            # Starting plot thread...
             self._start_plot_thread()
             
             plot_request = {
@@ -879,14 +861,14 @@ class PlotAnalyzer:
             }
             
             try:
-                print("Queuing histogram plot request...")
+                # Queuing histogram plot request...
                 self._plot_queue.put(plot_request, timeout=5)
-                print("Histogram plot request queued successfully")
+                # Histogram plot request queued successfully
             except Exception as e:
                 print(f"Failed to queue histogram plot: {e}")
         else:
             # Non-OpenCV Qt backends can run in main thread
-            print("Using main thread for Qt backend")
+            # Using main thread for Qt backend
             self._create_histogram_plot_internal(
                 image.copy(), 
                 roi, 
@@ -933,9 +915,7 @@ class PlotAnalyzer:
         if not MATPLOTLIB_AVAILABLE:
             return
         
-        print("Starting histogram plot creation...")
-        print(f"Thread: {threading.current_thread().name}")
-        print(f"Is main thread: {threading.current_thread() is threading.main_thread()}")
+        # Starting histogram plot creation...
         
         try:
             if image is None or image.size == 0:
@@ -1024,7 +1004,7 @@ class PlotAnalyzer:
             # Handle display based on backend type
             if self._is_agg_backend and self._opencv_detected:
                 # Agg backend in OpenCV app - convert to OpenCV image and display
-                print("Converting matplotlib plot to OpenCV image...")
+                # Converting matplotlib plot to OpenCV image...
                 opencv_img = self._figure_to_opencv_image(fig)
                 
                 if opencv_img is not None:
@@ -1043,8 +1023,7 @@ class PlotAnalyzer:
                         cv2.resizeWindow(window_name, new_width, new_height)
                     
                     cv2.imshow(window_name, opencv_img)
-                    print(f"High-quality histogram displayed in OpenCV window: {window_name}")
-                    print(f"Plot resolution: {width}x{height} pixels")
+                    # High-quality histogram displayed in OpenCV window
                     
                     # Store window name for cleanup tracking
                     if not hasattr(self, '_opencv_windows'):
@@ -1056,7 +1035,8 @@ class PlotAnalyzer:
                     self._last_histogram_window_name = window_name
                     
                 else:
-                    print("Failed to convert matplotlib figure to OpenCV image")
+                    # Failed to convert matplotlib figure to OpenCV image
+                    pass
                     
                 # Close the matplotlib figure to save memory
                 plt.close(fig)
@@ -1064,27 +1044,29 @@ class PlotAnalyzer:
             else:
                 # Interactive backends (non-OpenCV applications)
                 current_thread_is_main = threading.current_thread() is threading.main_thread()
-                print(f"Displaying histogram plot - main thread: {current_thread_is_main}")
+                # Displaying histogram plot
                 
                 if current_thread_is_main:
                     # Running in main thread - safe for all backends
-                    print("Showing plot in main thread")
+                    # Showing plot in main thread
                     plt.show(block=False)
                     try:
                         fig.canvas.draw()
                         fig.canvas.flush_events()
-                        print("Plot displayed successfully")
+                        # Plot displayed successfully
+                        pass
                     except Exception as e:
                         print(f"Warning: Display issue: {e}")
                 else:
                     # Running in worker thread - only safe for TkAgg
                     if self._is_tkinter_backend:
                         try:
-                            print("Showing TkAgg plot in worker thread")
+                            # Showing TkAgg plot in worker thread
                             plt.show(block=False)
                             threading.Event().wait(0.2)  # Give more time to initialize
                             fig.canvas.draw()
-                            print("TkAgg plot displayed successfully")
+                            # TkAgg plot displayed successfully
+                            pass
                             # Don't call flush_events with TkAgg in thread
                         except Exception as e:
                             print(f"Warning: Display issue with TkAgg backend: {e}")
@@ -1100,8 +1082,7 @@ class PlotAnalyzer:
                 else:
                     self.plot_windows[plot_id] = fig
                 
-                print(f"Histogram plot stored with ID: {plot_id}")
-                print(f"Total plots: {len(self.plot_windows)}")
+                # Histogram plot stored with ID
                 
         except Exception as e:
             print(f"Error creating histogram plot: {e}")
@@ -1359,11 +1340,11 @@ class PlotAnalyzer:
             Space Complexity: O(1) - releases memory used by plot tracking.
         """
         if not MATPLOTLIB_AVAILABLE:
-            print("   → Matplotlib not available, skipping plot cleanup")
+            # Matplotlib not available, skipping plot cleanup
             return
             
-        print("   → Starting close_all_plots()")
-        print(f"   → Found {len(self.plot_windows)} matplotlib plot windows")
+        # Starting close_all_plots()
+        # Found matplotlib plot windows
         
         try:
             # Close matplotlib figures
@@ -1385,18 +1366,19 @@ class PlotAnalyzer:
             
             # Close OpenCV windows created by Agg backend
             if hasattr(self, '_opencv_windows'):
-                print(f"   → Found {len(self._opencv_windows)} OpenCV plot windows: {list(self._opencv_windows)}")
+                # Found OpenCV plot windows
                 for window_name in list(self._opencv_windows):
                     try:
-                        print(f"   → Closing OpenCV window: {window_name}")
+                        # Closing OpenCV window
                         cv2.destroyWindow(window_name)
-                        print(f"   → Successfully closed: {window_name}")
+                        # Successfully closed window
                     except Exception as e:
                         print(f"   → Error closing window {window_name}: {e}")
                 self._opencv_windows.clear()
-                print("   → All OpenCV windows cleared from tracking set")
+                # All OpenCV windows cleared from tracking set
             else:
-                print("   → No OpenCV windows found (_opencv_windows attribute missing)")
+                # No OpenCV windows found (_opencv_windows attribute missing)
+                pass
                 
         except Exception as e:
             print(f"Error closing plots: {e}")
@@ -1441,22 +1423,22 @@ class PlotAnalyzer:
             return False
             
         try:
-            print(f"💾 Saving histogram plot to: {filename}")
+            # Saving histogram plot to file
             
             # For Agg backend with OpenCV display, save the stored OpenCV image directly
             if self._is_agg_backend and self._opencv_detected:
-                print("   → Using OpenCV display - saving stored image directly")
+                # Using OpenCV display - saving stored image directly
                 if hasattr(self, '_last_histogram_opencv_image') and self._last_histogram_opencv_image is not None:
                     # Save the OpenCV image directly as PNG
                     success = cv2.imwrite(filename, self._last_histogram_opencv_image)
                     if success:
-                        print(f"   → Successfully saved OpenCV histogram image to {filename}")
+                        # Successfully saved OpenCV histogram image
                         return True
                     else:
-                        print(f"   → Error: Failed to write image to {filename}")
+                        # Error: Failed to write image to file
                         return False
                 else:
-                    print("   → Error: No OpenCV histogram image available for saving")
+                    # Error: No OpenCV histogram image available for saving
                     return False
             else:
                 # For interactive backends, save the last created figure
@@ -1464,10 +1446,10 @@ class PlotAnalyzer:
                     last_fig = list(self.plot_windows.values())[-1]
                     last_fig.savefig(filename, dpi=dpi, bbox_inches='tight', 
                                    facecolor='white', edgecolor='none')
-                    print(f"   → Successfully saved plot to {filename}")
+                    # Successfully saved plot to file
                     return True
                 else:
-                    print("   → Error: No plots available for saving")
+                    # Error: No plots available for saving
                     return False
                     
         except Exception as e:
@@ -1514,22 +1496,22 @@ class PlotAnalyzer:
             return False
             
         try:
-            print(f"💾 Saving profile plot to: {filename}")
+            # Saving profile plot to file
             
             # For Agg backend with OpenCV display, save the stored OpenCV image directly
             if self._is_agg_backend and self._opencv_detected:
-                print("   → Using OpenCV display - saving stored image directly")
+                # Using OpenCV display - saving stored image directly
                 if hasattr(self, '_last_profile_opencv_image') and self._last_profile_opencv_image is not None:
                     # Save the OpenCV image directly as PNG
                     success = cv2.imwrite(filename, self._last_profile_opencv_image)
                     if success:
-                        print(f"   → Successfully saved OpenCV profile image to {filename}")
+                        # Successfully saved OpenCV profile image
                         return True
                     else:
-                        print(f"   → Error: Failed to write image to {filename}")
+                        # Error: Failed to write image to file
                         return False
                 else:
-                    print("   → Error: No OpenCV profile image available for saving")
+                    # Error: No OpenCV profile image available for saving
                     return False
             else:
                 # For interactive backends, save the last created figure
@@ -1537,10 +1519,10 @@ class PlotAnalyzer:
                     last_fig = list(self.plot_windows.values())[-1]
                     last_fig.savefig(filename, dpi=dpi, bbox_inches='tight', 
                                    facecolor='white', edgecolor='none')
-                    print(f"   → Successfully saved plot to {filename}")
+                    # Successfully saved plot to file
                     return True
                 else:
-                    print("   → Error: No plots available for saving")
+                    # Error: No plots available for saving
                     return False
                     
         except Exception as e:

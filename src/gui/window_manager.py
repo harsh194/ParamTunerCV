@@ -77,11 +77,27 @@ class WindowManager:
         
         Sets up the window manager with configuration settings that control
         window properties, sizes, and behavior. The actual windows are not
-        created until create_windows() is called.
+        created until create_windows() is called to allow for lazy initialization.
         
         Args:
-            config: ViewerConfig instance containing window configuration
-                   including names, sizes, and debug mode settings.
+            config (ViewerConfig): ViewerConfig instance containing window configuration
+                                  including window names, sizes, debug mode settings,
+                                  and trackbar definitions.
+        
+        Returns:
+            None: Constructor initializes instance, no return value.
+        
+        Examples:
+            >>> from src.config.viewer_config import ViewerConfig
+            >>> config = ViewerConfig()
+            >>> config.screen_width = 800
+            >>> config.screen_height = 600
+            >>> window_manager = WindowManager(config)
+            >>> print(window_manager.windows_created)  # False
+            
+        Performance:
+            Time Complexity: O(1) - Simple configuration storage and flag initialization.
+            Space Complexity: O(1) - Fixed memory for configuration reference and state.
         """
         self.config = config
         self.windows_created = False
@@ -93,31 +109,38 @@ class WindowManager:
         
         Creates the main process window, optional text window, and trackbar window
         based on configuration settings. Sets up mouse callbacks for interaction
-        and applies appropriate window flags and sizing.
-        
-        Windows are only created if debug mode is enabled in the configuration
-        and they haven't been created previously.
+        and applies appropriate window flags and sizing. Only creates windows
+        if debug mode is enabled and windows haven't been created previously.
         
         Args:
-            mouse_callback: Callback function for mouse events in the process window.
-                           Should have signature: callback(event, x, y, flags, param)
-            text_mouse_callback: Callback function for mouse events in the text window.
-                                Should have signature: callback(event, x, y, flags, param)
-            create_text_window: Whether to create the text overlay window.
-                               Defaults to True.
+            mouse_callback (Callable): Callback function for mouse events in the process window.
+                                      Should have signature: callback(event, x, y, flags, param)
+                                      where event is cv2 mouse event type.
+            text_mouse_callback (Callable): Callback function for mouse events in the text window.
+                                           Should have signature: callback(event, x, y, flags, param)
+            create_text_window (bool): Whether to create the text overlay window.
+                                     Defaults to True. False skips text window creation.
         
-        Side Effects:
-            - Creates OpenCV windows with specified properties
-            - Registers mouse callbacks for user interaction
-            - Sets windows_created flag to True on success
-            - Prints error messages on failure
+        Returns:
+            None: Creates windows as side effect, no return value.
         
-        Raises:
-            Exception: Silently handled - prints error and sets windows_created to False
+        Examples:
+            >>> def handle_mouse(event, x, y, flags, param):
+            ...     if event == cv2.EVENT_LBUTTONDOWN:
+            ...         print(f"Clicked at ({x}, {y})")
+            >>> def handle_text_mouse(event, x, y, flags, param):
+            ...     pass  # Handle text window mouse events
+            >>> window_manager = WindowManager(config)
+            >>> window_manager.create_windows(handle_mouse, handle_text_mouse)
+            >>> # Three OpenCV windows created with mouse callbacks
+            >>> print(window_manager.windows_created)  # True
+            
+        Performance:
+            Time Complexity: O(1) - Fixed number of window creation operations.
+            Space Complexity: O(1) - Fixed memory for OpenCV windows and callbacks.
         """
         if self.windows_created: return
         if not self.config.enable_debug: # Don't create windows if debug is off
-            # print("WindowManager: Debug mode is off, not creating windows.") # Optional log
             return
 
         try:
@@ -135,7 +158,6 @@ class WindowManager:
                 cv2.resizeWindow(self.config.trackbar_window_name, self.config.trackbar_window_width, self.config.trackbar_window_height)
             
             self.windows_created = True
-            # print("WindowManager: Windows created successfully.") # Optional log
         except Exception as e:
             print(f"CRITICAL: Error creating OpenCV windows: {e}\n{traceback.format_exc()}")
             self.windows_created = False
@@ -146,15 +168,30 @@ class WindowManager:
         
         Closes all OpenCV windows that were created by this manager and resets
         the internal state. Safe to call multiple times or when no windows exist.
+        Ensures proper cleanup of OpenCV resources and window handles.
         
-        Side Effects:
-            - Destroys all OpenCV windows
-            - Sets windows_created flag to False
+        Args:
+            None: This method takes no arguments.
+        
+        Returns:
+            None: Destroys windows as side effect, no return value.
+        
+        Examples:
+            >>> window_manager = WindowManager(config)
+            >>> window_manager.create_windows(mouse_cb, text_cb)
+            >>> print(window_manager.windows_created)  # True
+            >>> window_manager.destroy_all_windows()
+            >>> print(window_manager.windows_created)  # False
+            >>> # Safe to call multiple times
+            >>> window_manager.destroy_all_windows()  # No error
+            
+        Performance:
+            Time Complexity: O(1) - Single OpenCV destroy operation for all windows.
+            Space Complexity: O(1) - Frees memory allocated for window resources.
         """
         if self.windows_created:
             cv2.destroyAllWindows()
             self.windows_created = False
-            # print("WindowManager: Windows destroyed.") # Optional log
 
     def resize_process_window(self, width: int, height: int) -> None:
         """
@@ -162,19 +199,30 @@ class WindowManager:
         
         Adjusts the size of the main process window while enforcing minimum
         and maximum size constraints from the configuration. Validates window
-        existence and visibility before attempting resize.
+        existence and visibility before attempting resize to prevent errors.
         
         Args:
-            width: Target width in pixels.
-            height: Target height in pixels.
+            width (int): Target width in pixels. Must be positive integer.
+                        Will be clamped to configuration constraints.
+            height (int): Target height in pixels. Must be positive integer.
+                         Will be clamped to configuration constraints.
         
-        Side Effects:
-            - Resizes the process window if valid and visible
-            - Applies size constraints from configuration
-            - Silently handles resize errors
+        Returns:
+            None: Resizes window as side effect, no return value.
         
+        Examples:
+            >>> window_manager = WindowManager(config)
+            >>> window_manager.create_windows(mouse_cb, text_cb)
+            >>> window_manager.resize_process_window(1024, 768)
+            >>> # Process window resized to 1024x768 (within constraints)
+            >>> window_manager.resize_process_window(50, 50)
+            >>> # Resized to minimum allowed size (constraints applied)
+            >>> window_manager.resize_process_window(5000, 5000)
+            >>> # Resized to maximum allowed size (constraints applied)
+            
         Performance:
-            Time Complexity: O(1) - Single window resize operation.
+            Time Complexity: O(1) - Single window resize operation with bounds checking.
+            Space Complexity: O(1) - No additional memory allocation.
         """
         if not self.windows_created: return # No window to resize
         try:
@@ -196,15 +244,26 @@ class WindowManager:
         
         Matplotlib operations can sometimes interfere with OpenCV window titles,
         making them disappear or become corrupted. This method restores the
-        original window titles for all visible OpenCV windows.
+        original window titles for all visible OpenCV windows created by this manager.
         
-        Side Effects:
-            - Restores titles for process, text, and trackbar windows
-            - Only affects visible windows
-            - Silently handles any errors during title restoration
+        Args:
+            None: This method takes no arguments.
         
+        Returns:
+            None: Refreshes window titles as side effect, no return value.
+        
+        Examples:
+            >>> window_manager = WindowManager(config)
+            >>> window_manager.create_windows(mouse_cb, text_cb)
+            >>> # After matplotlib plotting operations that might corrupt titles
+            >>> import matplotlib.pyplot as plt
+            >>> plt.show()  # May interfere with OpenCV window titles
+            >>> window_manager.refresh_window_titles()
+            >>> # Window titles restored to original names
+            
         Performance:
-            Time Complexity: O(1) - Fixed number of window title operations.
+            Time Complexity: O(1) - Fixed number of window title restoration operations.
+            Space Complexity: O(1) - No additional memory allocation.
         """
         if not self.windows_created:
             return

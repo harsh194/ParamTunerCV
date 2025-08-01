@@ -2,9 +2,4 @@ opencv-contrib-python==4.10.0.84
 numpy==2.2.6
 matplotlib==3.10.3
 
-# WARNING: Do NOT install PyQt5 for OpenCV applications!
-# PyQt5 creates Qt event loops that conflict with OpenCV's cv2.waitKey()
-# This causes fatal GIL threading errors in OpenCV applications
-# 
-# Only install PyQt5 for non-OpenCV matplotlib applications:
-# PyQt5>=5.15.0
+
