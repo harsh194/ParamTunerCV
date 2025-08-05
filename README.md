@@ -1,127 +1,202 @@
+<div align="center">
+
 # ParamTunerCV
 
-A professional-grade interactive image viewer and processing application for computer vision research, image analysis, and real-time parameter tuning. Built with OpenCV and Python.
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://python.org)
+[![OpenCV](https://img.shields.io/badge/opencv-4.10.0-green.svg)](https://opencv.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/your-username/paramtunercv/graphs/commit-activity)
+
+**Professional interactive image viewer and processing application for computer vision research and real-time parameter tuning.**
+
+[Quick Start](#quick-start) • [Features](#features) • [Examples](#examples) • [API](#api-reference) • [Contributing](#contributing)
+
+</div>
+
+---
+
+## 📋 Table of Contents
+
+- [Quick Start](#quick-start)
+- [Features](#features)
+- [Examples](#examples)
+- [Controls](#controls)
+- [Interface Gallery](#interface-gallery)
+- [Architecture](#architecture)
+- [API Reference](#api-reference)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## 🚀 Quick Start
 
 ```bash
 git clone https://github.com/your-username/paramtunercv.git
 cd paramtunercv
-pip install -r requirements.txt
+uv sync                           # Recommended (faster)
+# Or: pip install -r requirements.txt
 python examples/01_basic_usage.py
 ```
 
-## ✨ Key Features
+**Requirements:** Python 3.8+, OpenCV 4.10.0, NumPy 2.2.6, Matplotlib 3.10.3
 
-- **50+ Pre-configured Trackbars**: Complete trackbar definitions for morphology, edge detection, filtering, thresholding, feature detection, and color space operations
-- **15+ Specialized Factory Viewers**: Ready-to-use viewers for Canny edge detection, morphological operations, Hough transforms, corner detection, and more
-- **Professional Multi-Window GUI**: Integrated OpenCV + matplotlib + tkinter interface with proper resource management and thread safety
-- **Sophisticated ROI System**: Interactive rectangle, polygon, and line drawing with visual feedback, animations, and multi-region analysis
-- **Comprehensive Analysis Suite**: Multi-channel histograms, pixel intensity profiles, and multi-format data export (JSON/CSV)
-- **Advanced Thresholding Engine**: Support for 7 color spaces (BGR, HSV, HLS, Lab, Luv, YCrCb, XYZ) with binary, adaptive, and range-based methods
-- **Dual Operation Modes**: Full-featured GUI for interactive development and headless mode for production automation
+## ✨ Features
 
-## 📖 Examples & Usage
+- **50+ Pre-configured Trackbars** - Real-time parameter tuning for morphology, edge detection, filtering, thresholding
+- **15+ Specialized Factory Viewers** - Ready-to-use viewers for Canny, Hough transforms, corner detection
+- **Interactive ROI System** - Rectangle, polygon, and line drawing with visual feedback
+- **Multi-Space Thresholding** - Support for 7 color spaces (BGR, HSV, Lab, etc.) with binary, adaptive, Otsu methods
+- **Professional Analysis Suite** - Multi-channel histograms, pixel intensity profiles, JSON/CSV export
+- **Dual Operation Modes** - Full GUI for development, headless for production automation
 
-Complete examples are provided in the `examples/` folder. Start with these:
+## 📖 Examples
 
-### Essential Examples
-1. **`01_basic_usage.py`** - Core workflow and main loop pattern
-2. **`02_window_control.py`** - UI window management options
-3. **`03_trackbar_definitions.py`** - Parameter control and trackbar setup
-4. **`04_app_debug_mode.py`** - Development vs production modes
-5. **`05_viewer_factory_usage.py`** - Pre-configured viewers for CV tasks
+Start with these progressive examples in the `examples/` folder:
 
-```bash
-# Run examples from the project root
-python examples/01_basic_usage.py
-python examples/02_window_control.py
-# ... etc
+| Example | Description |
+|---------|-------------|
+| `01_basic_usage.py` | Core workflow and main loop pattern |
+| `02_window_control.py` | Window management and UI controls |
+| `03_trackbar_definitions.py` | Custom trackbars and parameter control |
+| `04_app_debug_mode.py` | GUI vs headless operation modes |
+| `05_viewer_factory_usage.py` | Pre-built viewers for common CV tasks |
+
+### Quick Integration
+
+```python
+from src import ImageViewer, ViewerConfig
+import numpy as np
+import cv2
+
+config = ViewerConfig()
+
+trackbar_definitions = [
+    {"name": "Show Image", "param_name": "show", "max_value": "num_images-1", "initial_value": 0},
+    {"name": "Count", "param_name": "count", "max_value": 50, "initial_value": 10}, 
+    {"name": "Gauss Size", "param_name": "GaussianSize", "max_value": 31, "callback": "odd", "initial_value": 5}, 
+    {"name": "Thresh Val", "param_name": "thresh_val", "max_value": 255, "initial_value": 128}, 
+]
+
+IMG_HEIGHT, IMG_WIDTH = 600, 800
+viewer = ImageViewer(config, trackbar_definitions)
+
+while viewer.should_loop_continue():
+    params = viewer.trackbar.parameters
+    
+    current_thresh = params.get("thresh_val") 
+    current_gaussian_size = params.get("GaussianSize", 5)
+    block_count = params.get("count", 10)
+
+    base_color_image = np.full((IMG_HEIGHT, IMG_WIDTH, 3), (block_count * 5, 0, 0), dtype=np.uint8)
+    cv2.rectangle(base_color_image, (50, 50), (IMG_WIDTH - 50, IMG_HEIGHT - 50), (0, 255, 0), 3)
+
+    gray_image = cv2.cvtColor(base_color_image, cv2.COLOR_BGR2GRAY)
+
+    gauss_image = cv2.GaussianBlur(gray_image, (current_gaussian_size, current_gaussian_size), 0)
+
+    _, thresh_image = cv2.threshold(gauss_image, current_thresh, 255, cv2.THRESH_BINARY)
+    
+    viewer.display_images = [
+        (base_color_image, "Color"),
+        (gray_image, "Grayscale Image"),
+        (gauss_image, "Gaussian Blur)"),
+        (thresh_image, "Threshold image")
+    ]
+
+viewer.cleanup_viewer()
 ```
 
-See `examples/README.md` for detailed explanations of each example.
+## 🖱️ Controls
 
-## 🖱️ Mouse Controls
-
-- **Left Click & Drag**: Rectangle ROI selection
-- **Mouse Wheel**: Zoom in/out
-- **Middle Click & Drag**: Pan image
-- **Right Click**: Remove last selection
-- **Double Right Click**: Clear all selections
-
-### Keyboard Shortcuts
-
-- **R**: Rectangle mode (default)
-- **L**: Line mode (pixel profiles)
-- **P**: Polygon mode
-- **H**: Show histogram
-- **Shift+P**: Show pixel profiles
-- **Q/ESC**: Quit
+**Mouse:** Left drag (ROI), wheel (zoom), middle drag (pan), right click (remove selection)
+**Keys:** R (rectangle), L (line), P (polygon), H (histogram), Q/ESC (quit)
 
 ## 📸 Interface Gallery
 
-### Real-Time Parameter Control
+<details>
+<summary><strong>🎛️ Real-Time Parameter Control</strong></summary>
+
 ![Trackbar Interface](assets/trackbar.png)
+
 *50+ preconfigured trackbars for real-time OpenCV parameter tuning - adjust Gaussian blur, edge detection, morphological operations, and thresholding with immediate visual feedback*
 
-### Professional Analysis Suite  
+</details>
+
+<details>
+<summary><strong>📊 Professional Analysis Suite</strong></summary>
+
 ![Analysis Controls](assets/analysis_controls.png)
+
 *Comprehensive analysis control panel with ROI management, drawing tools, histogram generation, pixel intensity profiling, and integrated data export functionality*
 
-### Advanced Multi-Space Thresholding
+</details>
+
+<details>
+<summary><strong>🎨 Advanced Multi-Space Thresholding</strong></summary>
+
 ![Thresholding Controls](assets/thresholding_control_window.png)
+
 *Sophisticated thresholding interface supporting 7 color spaces (BGR, HSV, Lab, etc.) with binary, adaptive, Otsu, and range-based methods for precise image segmentation*
 
-### Multi-Format Data Export
+</details>
+
+<details>
+<summary><strong>💾 Multi-Format Data Export</strong></summary>
+
 ![Export Interface](assets/export_window.png)
+
 *Professional export system for analysis results - save histograms, pixel profiles, and geometric data in JSON/CSV formats with configurable options*
 
-### Interactive Text Display
+</details>
+
+<details>
+<summary><strong>📝 Interactive Text Display</strong></summary>
+
 ![Text Window](assets/text_window.png)
+
 *Clean text interface for displaying analysis results, parameter values, and system information with theme-aware styling*
+
+</details>
 
 ## 🏗️ Architecture
 
 ```
 src/
-├── core/           # ImageViewer main class
-├── config/         # ViewerConfig management
-├── controls/       # TrackbarManager
-├── events/         # MouseHandler
-├── gui/            # UI components
-├── analysis/       # Analysis tools
-└── utils/          # Factory functions
+├── core/           # ImageViewer main orchestrator
+├── config/         # ViewerConfig management  
+├── controls/       # TrackbarManager for real-time controls
+├── events/         # MouseHandler for interactions
+├── gui/            # WindowManager and UI components
+├── analysis/       # Analysis modules (plotting, export, threshold)
+└── utils/          # Factory methods and utilities
 ```
 
-## 🧪 Testing
+**Design:** Factory pattern for viewers, Observer pattern for callbacks, Fluent interface for configuration
+
+## 📚 API Reference
+### Testing
 
 ```bash
-# Run examples to test functionality
-python examples/01_basic_usage.py
-python examples/05_viewer_factory_usage.py
-
-# Legacy test script (deprecated)
-python check.py
+python examples/01_basic_usage.py  # Primary test
 ```
-
-## 🐛 Troubleshooting
-
-**OpenCV Window Issues**: Reduce window size or disable features
-**Large Images**: Use `resize_if_large()` helper function
-**Plot Issues**: Try different matplotlib backends (`matplotlib.use('TkAgg')`)
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create feature branch
-3. Make changes
-4. Test with `python examples/01_basic_usage.py`
-5. Submit pull request
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Test changes: `python examples/01_basic_usage.py`
+4. Submit pull request
+
+**Coding Standards:** PEP 8, docstrings, type hints
+
+## 📄 License
+
+MIT License © 2025 Harsh Ranjan  
+**Contact:** harshranjan194@gmail.com
 
 ---
 
-**ParamTunerCV** - Professional image analysis made simple.
+<div align="center">
+
+[⬆️ Back to Top](#paramtunercv)
+
+</div>

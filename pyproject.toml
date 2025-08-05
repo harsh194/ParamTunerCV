@@ -1,0 +1,12 @@
+[project]
+name = "ParamTunerCV"
+version = "0.1.0"
+description = "Parameter tuning tool for computer vision"
+authors = [{ name = "Harsh Ranjan", email = "harshranjan194@gmail.com"  }]
+requires-python = ">=3.12"
+
+dependencies = [
+    "matplotlib==3.10.3",
+    "numpy==2.2.6",
+    "opencv-contrib-python==4.10.0.84",
+]

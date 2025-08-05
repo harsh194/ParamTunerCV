@@ -31,9 +31,9 @@ import os
 import json
 from .thresholding_manager import ThresholdingManager
 from .theme_manager import ThemeManager
-from .enhanced_widgets import ComboboxWithIndicator
+from .widgets import ComboboxWithIndicator
 try:
-    from .enhanced_export_dialog import EnhancedExportDialog
+    from .export_dialog import EnhancedExportDialog
     ENHANCED_EXPORT_AVAILABLE = True
 except ImportError as e:
     ENHANCED_EXPORT_AVAILABLE = False
