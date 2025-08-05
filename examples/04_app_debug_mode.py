@@ -73,7 +73,7 @@ def development_mode_example():
     ]
     
     # Create viewer with GUI enabled (APP_DEBUG_MODE = True)
-    viewer = ImageViewer(config, trackbar_definitions, enable_ui=True)
+    viewer = ImageViewer(config, trackbar_definitions)
     
     print("GUI windows should now be visible...")
     print("You can adjust parameters using trackbars")
@@ -171,8 +171,7 @@ def production_mode_example():
     
     # Create viewer with GUI disabled (APP_DEBUG_MODE = False)
     viewer = ImageViewer(config, trackbar_definitions, 
-                        enable_ui=False,  # No GUI
-                        max_headless_iterations=len(test_images))  # Process all images
+                        app_debug_mode=False)  # Process all images
     
     print("Processing images in production mode (no windows)...")
     

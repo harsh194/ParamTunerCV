@@ -14,31 +14,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import cv2
 import numpy as np
 
-
 from src import (
-    create_basic_viewer,
     create_viewer_with_common_controls,
     create_viewer_for_filtering,
     create_viewer_for_morphology,
     create_viewer_for_canny,
     create_viewer_for_hsv_filtering,
 )
-
-def demonstrate_basic_viewer():
-    """Example 1: Basic viewer with no trackbars"""
-    print("Example 1: Basic Viewer")
-    viewer = create_basic_viewer()
-    
-    # Load sample image
-    image = cv2.imread('path/to/your/image.jpg')
-    if image is None:
-        # Create a sample image if none available
-        image = np.random.randint(0, 255, (400, 600, 3), dtype=np.uint8)
-    
-    while viewer.should_loop_continue():
-        viewer.display_images = [(image, "Original Image")]
-    
-    viewer.cleanup_viewer()
 
 def demonstrate_common_controls():
     """Example 2: Viewer with common image processing controls"""
@@ -212,22 +194,20 @@ def demonstrate_hsv_filtering():
 if __name__ == "__main__":
     print("ViewerFactory Examples")
     print("Choose an example to run:")
-    print("1. Basic Viewer")
-    print("2. Common Controls")
-    print("3. Filtering Operations")
-    print("4. Canny Edge Detection")
-    print("5. Morphological Operations")
-    print("6. HSV Color Filtering")
+    print("1. Common Controls")
+    print("2. Filtering Operations")
+    print("3. Canny Edge Detection")
+    print("4. Morphological Operations")
+    print("5. HSV Color Filtering")
     
     choice = input("Enter choice (1-6): ")
     
     examples = {
-        '1': demonstrate_basic_viewer,
-        '2': demonstrate_common_controls,
-        '3': demonstrate_filtering_viewer,
-        '4': demonstrate_canny_viewer,
-        '5': demonstrate_morphology_viewer,
-        '6': demonstrate_hsv_filtering
+        '1': demonstrate_common_controls,
+        '2': demonstrate_filtering_viewer,
+        '3': demonstrate_canny_viewer,
+        '4': demonstrate_morphology_viewer,
+        '5': demonstrate_hsv_filtering
     }
     
     if choice in examples:
