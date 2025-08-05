@@ -1,4 +1,4 @@
-<div align="center">
+<div align="center" id="paramtunercv">
 
 # ParamTunerCV
 
@@ -7,9 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/your-username/paramtunercv/graphs/commit-activity)
 
-**Professional interactive image viewer and processing application for computer vision research and real-time parameter tuning.**
-
-[Quick Start](#quick-start) • [Features](#features) • [Examples](#examples) • [API](#api-reference) • [Contributing](#contributing)
+*Professional interactive image viewer and processing application for computer vision research and real-time parameter tuning.*
 
 </div>
 
@@ -112,50 +110,40 @@ viewer.cleanup_viewer()
 
 ## 📸 Interface Gallery
 
-<details>
-<summary><strong>🎛️ Real-Time Parameter Control</strong></summary>
-
-![Trackbar Interface](assets/trackbar.png)
+### 🎛️ Real-Time Parameter Control
+<div align="center">
+<img src="assets/trackbar.png" alt="Trackbar Interface" width="700">
+</div>
 
 *50+ preconfigured trackbars for real-time OpenCV parameter tuning - adjust Gaussian blur, edge detection, morphological operations, and thresholding with immediate visual feedback*
 
-</details>
-
-<details>
-<summary><strong>📊 Professional Analysis Suite</strong></summary>
-
-![Analysis Controls](assets/analysis_controls.png)
+### 📊 Professional Analysis Suite
+<div align="center">
+<img src="assets/analysis_controls.png" alt="Analysis Controls" width="600">
+</div>
 
 *Comprehensive analysis control panel with ROI management, drawing tools, histogram generation, pixel intensity profiling, and integrated data export functionality*
 
-</details>
-
-<details>
-<summary><strong>🎨 Advanced Multi-Space Thresholding</strong></summary>
-
-![Thresholding Controls](assets/thresholding_control_window.png)
+### 🎨 Advanced Multi-Space Thresholding
+<div align="center">
+<img src="assets/thresholding_control_window.png" alt="Thresholding Controls" width="650">
+</div>
 
 *Sophisticated thresholding interface supporting 7 color spaces (BGR, HSV, Lab, etc.) with binary, adaptive, Otsu, and range-based methods for precise image segmentation*
 
-</details>
-
-<details>
-<summary><strong>💾 Multi-Format Data Export</strong></summary>
-
-![Export Interface](assets/export_window.png)
+### 💾 Multi-Format Data Export
+<div align="center">
+<img src="assets/export_window.png" alt="Export Interface" width="500">
+</div>
 
 *Professional export system for analysis results - save histograms, pixel profiles, and geometric data in JSON/CSV formats with configurable options*
 
-</details>
-
-<details>
-<summary><strong>📝 Interactive Text Display</strong></summary>
-
-![Text Window](assets/text_window.png)
+### 📝 Interactive Text Display
+<div align="center">
+<img src="assets/text_window.png" alt="Text Window" width="450">
+</div>
 
 *Clean text interface for displaying analysis results, parameter values, and system information with theme-aware styling*
-
-</details>
 
 ## 🏗️ Architecture
 
