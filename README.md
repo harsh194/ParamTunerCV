@@ -29,11 +29,24 @@
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/your-username/paramtunercv.git
-cd paramtunercv
-uv sync                           # Recommended (faster)
-# Or: pip install -r requirements.txt
-python examples/01_basic_usage.py
+  # Option 1: Install from PyPI (recommended for users)
+  pip install ParamTunerCV
+
+  # Option 2: Install with uv (fastest)
+  uv add ParamTunerCV
+
+  # Option 3: Development setup with uv (recommended for contributors)
+  git clone https://github.com/harsh194/ParamTunerCV.git
+  cd ParamTunerCV
+  uv sync
+
+  # Option 4: Development setup with pip
+  git clone https://github.com/harsh194/ParamTunerCV.git
+  cd ParamTunerCV
+  pip install -e .
+
+  # Test the installation
+  python examples/01_basic_usage.py
 ```
 
 **Requirements:** Python 3.8+, OpenCV 4.10.0, NumPy 2.2.6, Matplotlib 3.10.3
@@ -64,7 +77,7 @@ Start with these progressive examples in the `examples/` folder:
 ### Quick Integration
 
 ```python
-from src import ImageViewer, ViewerConfig
+from ParamTunerCV import ImageViewer, ViewerConfig
 import numpy as np
 import cv2
 
@@ -109,6 +122,7 @@ viewer.cleanup_viewer()
 ## 🖱️ Controls
 
 **Mouse:** Left drag (ROI), wheel (zoom), middle drag (pan), right click (remove selection)
+
 **Keys:** R (rectangle), L (line), P (polygon), H (histogram), Q/ESC (quit)
 
 <a id="interface-gallery"></a>

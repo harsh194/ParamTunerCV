@@ -11,12 +11,8 @@ This example demonstrates all the ways to define trackbars and access parameters
 - Custom trackbar configurations
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from src import ImageViewer, ViewerConfig
-from src import make_int_trackbar, make_odd_trackbar, make_image_selector, make_roi_trackbars
+from ParamTunerCV import ImageViewer, ViewerConfig
+from ParamTunerCV import make_int_trackbar, make_odd_trackbar, make_image_selector, make_roi_trackbars
 import numpy as np
 import cv2
 

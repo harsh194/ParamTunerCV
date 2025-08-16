@@ -7,14 +7,10 @@ Each factory function creates a viewer pre-configured with appropriate trackbars
 for specific image processing operations.
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
 import cv2
 import numpy as np
 
-from src import (
+from ParamTunerCV import (
     create_viewer_with_common_controls,
     create_viewer_for_filtering,
     create_viewer_for_morphology,

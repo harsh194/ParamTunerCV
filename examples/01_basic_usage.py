@@ -10,11 +10,7 @@ This example shows the most basic usage of the Parameter library:
 - How to display images and access parameters
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from src import ImageViewer, ViewerConfig
+from ParamTunerCV import ImageViewer, ViewerConfig
 import numpy as np
 import cv2
 

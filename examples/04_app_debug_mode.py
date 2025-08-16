@@ -11,11 +11,7 @@ Key differences:
 - False: No windows, fixed parameters, production-ready processing
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from src import ImageViewer, ViewerConfig
+from ParamTunerCV import ImageViewer, ViewerConfig
 import numpy as np
 import cv2
 import time
