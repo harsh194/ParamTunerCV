@@ -25,6 +25,7 @@
 - [Contributing](#contributing)
 - [License](#license)
 
+<a id="quick-start"></a>
 ## 🚀 Quick Start
 
 ```bash
@@ -37,6 +38,7 @@ python examples/01_basic_usage.py
 
 **Requirements:** Python 3.8+, OpenCV 4.10.0, NumPy 2.2.6, Matplotlib 3.10.3
 
+<a id="features"></a>
 ## ✨ Features
 
 - **50+ Pre-configured Trackbars** - Real-time parameter tuning for morphology, edge detection, filtering, thresholding
@@ -46,6 +48,7 @@ python examples/01_basic_usage.py
 - **Professional Analysis Suite** - Multi-channel histograms, pixel intensity profiles, JSON/CSV export
 - **Dual Operation Modes** - Full GUI for development, headless for production automation
 
+<a id="examples"></a>
 ## 📖 Examples
 
 Start with these progressive examples in the `examples/` folder:
@@ -102,12 +105,13 @@ while viewer.should_loop_continue():
 
 viewer.cleanup_viewer()
 ```
-
+<a id="controls"></a>
 ## 🖱️ Controls
 
 **Mouse:** Left drag (ROI), wheel (zoom), middle drag (pan), right click (remove selection)
 **Keys:** R (rectangle), L (line), P (polygon), H (histogram), Q/ESC (quit)
 
+<a id="interface-gallery"></a>
 ## 📸 Interface Gallery
 
 ### 🎛️ Real-Time Parameter Control
@@ -145,6 +149,7 @@ viewer.cleanup_viewer()
 
 *Clean text interface for displaying analysis results, parameter values, and system information with theme-aware styling* -->
 
+<a id="architecture"></a>
 ## 🏗️ Architecture
 
 ```
@@ -160,6 +165,7 @@ src/
 
 **Design:** Factory pattern for viewers, Observer pattern for callbacks, Fluent interface for configuration
 
+<a id="api-reference"></a>
 ## 📚 API Reference
 ### Testing
 
@@ -167,6 +173,7 @@ src/
 python examples/01_basic_usage.py  # Primary test
 ```
 
+<a id="contributing"></a>
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -176,6 +183,7 @@ python examples/01_basic_usage.py  # Primary test
 
 **Coding Standards:** PEP 8, docstrings, type hints
 
+<a id="license"></a>
 ## 📄 License
 
 MIT License © 2025 Harsh Ranjan  
