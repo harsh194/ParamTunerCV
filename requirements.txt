@@ -1,5 +1,5 @@
-opencv-contrib-python==4.10.0.84
-numpy==2.2.6
-matplotlib==3.10.3
+opencv-contrib-python>=4.5.0
+numpy>=1.21.0
+matplotlib>=3.5.0
 
 

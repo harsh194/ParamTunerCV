@@ -2,7 +2,7 @@
 
 # ParamTunerCV
 
-[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://python.org)
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://python.org)
 [![OpenCV](https://img.shields.io/badge/opencv-4.10.0-green.svg)](https://opencv.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/harsh194/ParamTunerCV/graphs/commit-activity)
@@ -155,13 +155,6 @@ viewer.cleanup_viewer()
 </div>
 
 *Professional export system for analysis results - save histograms, pixel profiles, and geometric data in JSON/CSV formats with configurable options*
-
-<!-- ### 📝 Interactive Text Display
-<div align="center">
-<img src="assets/text_window.png" alt="Text Window" width="450">
-</div>
-
-*Clean text interface for displaying analysis results, parameter values, and system information with theme-aware styling* -->
 
 <a id="architecture"></a>
 ## 🏗️ Architecture
