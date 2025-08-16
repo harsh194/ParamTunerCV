@@ -167,7 +167,7 @@ viewer.cleanup_viewer()
 ## 🏗️ Architecture
 
 ```
-src/
+src/ParamTunerCV/ 
 ├── core/           # ImageViewer main orchestrator
 ├── config/         # ViewerConfig management  
 ├── controls/       # TrackbarManager for real-time controls
